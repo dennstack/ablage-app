@@ -9,6 +9,7 @@ extraResources:
   - from: resources/categories.yaml
     to: categories.yaml
 win:
+  icon: build/icon.ico
   # nsis needs wine on Linux/WSL; portable and zip do not
   target:
     - portable

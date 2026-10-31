@@ -31,6 +31,8 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     title: 'Ablage',
+    // packaged builds take the icon from the executable
+    icon: app.isPackaged ? undefined : join(app.getAppPath(), 'build/icon.png'),
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

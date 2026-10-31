@@ -1,9 +1,10 @@
 import { useState, type DragEvent, type ReactNode } from 'react'
 import { NavLink } from 'react-router'
-import { Archive, FileText, FolderArchive, LayoutDashboard, Plus, Settings, Trash2, Upload } from 'lucide-react'
+import { FileText, FolderArchive, LayoutDashboard, Plus, Settings, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { importFiles, pickAndImport } from '@/lib/import'
 import { cn } from '@/lib/utils'
+import logo from '@/assets/logo.svg'
 
 const nav = [
   { to: '/', label: 'Übersicht', icon: LayoutDashboard, end: true },
@@ -38,7 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     >
       <aside className="flex w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
         <div className="flex items-center gap-2 px-5 py-5 text-sidebar-accent-foreground">
-          <Archive className="size-5" />
+          <img src={logo} alt="" className="size-6" />
           <span className="text-lg font-semibold tracking-tight">Ablage</span>
         </div>
         <div className="px-3 pb-3">
