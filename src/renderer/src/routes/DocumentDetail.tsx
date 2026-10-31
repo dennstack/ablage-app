@@ -1,20 +1,11 @@
-import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 import { ArrowLeft, ExternalLink, FolderOpen, MoreHorizontal, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
 import type { Document, DocumentPatch } from '@shared/types'
 import { CategorySelect } from '@/components/CategorySelect'
+import { ConfirmTrash } from '@/components/ConfirmTrash'
 import { StatusBadge } from '@/components/StatusBadge'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -23,6 +14,7 @@ import { Label } from '@/components/ui/label'
 import { api, errorMessage } from '@/lib/api'
 import { formatDateTime } from '@/lib/format'
 import { useCategories, useData } from '@/lib/hooks'
+import { useHotkeys } from '@/lib/hotkeys'
 
 interface FormState {
   title: string
@@ -57,6 +49,8 @@ function toPatch(f: FormState): DocumentPatch {
 export function DocumentDetail() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const titleRef = useRef<HTMLInputElement>(null)
   const { categories } = useCategories()
   const { data: doc, loading } = useData(() => api['documents:get'](id), [id])
   const [form, setForm] = useState<FormState | null>(null)
@@ -69,15 +63,30 @@ export function DocumentDetail() {
     if (doc && !dirty) setForm(toForm(doc))
   }, [doc, dirty])
 
-  if (loading && !doc) return null
-  if (!doc || !form) return <p className="p-8 text-muted-foreground">Dokument nicht gefunden.</p>
+  const ready = !!form
+  useEffect(() => {
+    if (ready && (location.state as { edit?: boolean } | null)?.edit) titleRef.current?.focus()
+  }, [ready, location.state])
+
+  useHotkeys({
+    e: () => titleRef.current?.focus(),
+    delete: () => setConfirmDelete(true),
+    'mod+s': () => {
+      if (dirty && !saving) void save()
+    },
+    escape: (e) => {
+      if (e.target instanceof HTMLElement && e.target.matches('input, textarea, select')) e.target.blur()
+      else navigate(-1)
+    }
+  }, ready)
 
   const set = (key: keyof FormState, value: string): void => {
-    setForm({ ...form, [key]: value })
+    setForm((f) => f && { ...f, [key]: value })
     setDirty(true)
   }
 
-  const save = async (): Promise<void> => {
+  async function save(): Promise<void> {
+    if (!form) return
     setSaving(true)
     try {
       const updated = await api['documents:update'](id, toPatch(form))
@@ -90,6 +99,9 @@ export function DocumentDetail() {
       setSaving(false)
     }
   }
+
+  if (loading && !doc) return null
+  if (!doc || !form) return <p className="p-8 text-muted-foreground">Dokument nicht gefunden.</p>
 
   const run = (fn: () => Promise<unknown>, msg: string) => async () => {
     try {
@@ -165,7 +177,7 @@ export function DocumentDetail() {
             </CardHeader>
             <CardContent className="space-y-4">
               <Field label="Titel">
-                <Input value={form.title} onChange={(e) => set('title', e.target.value)} />
+                <Input ref={titleRef} value={form.title} onChange={(e) => set('title', e.target.value)} />
               </Field>
               <Field label="Kategorie">
                 <CategorySelect categories={categories} value={form.category_id} onChange={(v) => set('category_id', v)} />
@@ -228,30 +240,12 @@ export function DocumentDetail() {
         </aside>
       </div>
 
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>In den Papierkorb verschieben?</AlertDialogTitle>
-            <AlertDialogDescription>Die Datei wird nach „.ablage/trash“ verschoben und kann wiederhergestellt werden.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={async () => {
-                try {
-                  await api['documents:delete'](id)
-                  toast.success('In den Papierkorb verschoben')
-                  navigate('/documents')
-                } catch (err) {
-                  toast.error(errorMessage(err))
-                }
-              }}
-            >
-              Verschieben
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmTrash
+        id={confirmDelete ? id : null}
+        title={doc.title}
+        onOpenChange={setConfirmDelete}
+        onDone={() => navigate('/documents')}
+      />
     </div>
   )
 }

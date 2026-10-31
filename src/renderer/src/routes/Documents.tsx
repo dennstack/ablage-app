@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
-import { LayoutGrid, List, Search, X } from 'lucide-react'
+import { LayoutGrid, List, X } from 'lucide-react'
 import { DocumentCard } from '@/components/DocumentCard'
 import { CategorySelect } from '@/components/CategorySelect'
+import { ConfirmTrash } from '@/components/ConfirmTrash'
 import { Highlight } from '@/components/Highlight'
 import { PageHeader } from '@/components/AppShell'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -13,6 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { api } from '@/lib/api'
 import { formatAmount, formatDate } from '@/lib/format'
 import { useCategories, useData, useDebounced } from '@/lib/hooks'
+import { useHotkeys } from '@/lib/hotkeys'
+import { cn } from '@/lib/utils'
 
 const PAGE = 48
 
@@ -20,18 +23,49 @@ export function Documents() {
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const { categories, label } = useCategories()
-  const [q, setQ] = useState(params.get('q') ?? '')
   const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('docView') as 'grid' | 'list') ?? 'grid')
   const [limit, setLimit] = useState(PAGE)
+  const q = params.get('q') ?? ''
   const category = params.get('category') ?? ''
   const from = params.get('from') ?? ''
   const to = params.get('to') ?? ''
   const debouncedQ = useDebounced(q)
+  const [sel, setSel] = useState(-1)
+  const [trashId, setTrashId] = useState<string | null>(null)
 
   const { data } = useData(
     () => api['documents:list']({ q: debouncedQ, category, from: from || undefined, to: to || undefined, limit }),
     [debouncedQ, category, from, to, limit]
   )
+
+  const items = data?.items ?? []
+  const current = items[sel]
+
+  useEffect(() => {
+    setSel((s) => Math.min(s, items.length - 1))
+  }, [items.length])
+
+  useEffect(() => setLimit(PAGE), [debouncedQ])
+
+  useEffect(() => {
+    if (sel >= 0) document.querySelector(`[data-doc-index="${sel}"]`)?.scrollIntoView({ block: 'nearest' })
+  }, [sel])
+
+  useHotkeys({
+    j: () => setSel((s) => Math.min(s + 1, items.length - 1)),
+    k: () => setSel((s) => Math.max(s - 1, 0)),
+    enter: (e) => {
+      if (!current || e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement) return false
+      navigate(`/documents/${current.id}`)
+    },
+    e: () => {
+      if (current) navigate(`/documents/${current.id}`, { state: { edit: true } })
+    },
+    delete: () => {
+      if (current) setTrashId(current.id)
+    },
+    escape: () => setSel(-1)
+  })
 
   const setParam = (key: string, value: string): void => {
     const next = new URLSearchParams(params)
@@ -66,30 +100,11 @@ export function Documents() {
       />
       <div className="space-y-6 p-8">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-72 flex-1">
-            <Search className="absolute top-2.5 left-3 size-4 text-muted-foreground" />
-            <Input
-              autoFocus
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value)
-                setLimit(PAGE)
-              }}
-              placeholder="Volltextsuche in Titel, Absender und Inhalt …"
-              className="pl-9"
-            />
-          </div>
           <CategorySelect categories={categories} value={category} onChange={(v) => setParam('category', v)} allowAll className="w-56" />
           <Input type="date" value={from} onChange={(e) => setParam('from', e.target.value)} className="w-40" title="Datum von" />
           <Input type="date" value={to} onChange={(e) => setParam('to', e.target.value)} className="w-40" title="Datum bis" />
           {hasFilter && (
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setQ('')
-                setParams({}, { replace: true })
-              }}
-            >
+            <Button variant="ghost" onClick={() => setParams({}, { replace: true })}>
               <X /> Zurücksetzen
             </Button>
           )}
@@ -101,7 +116,9 @@ export function Documents() {
 
         {view === 'grid' ? (
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 2xl:grid-cols-4">
-            {data?.items.map((d) => <DocumentCard key={d.id} doc={d} categoryLabel={label(d.category_id)} />)}
+            {items.map((d, i) => (
+              <DocumentCard key={d.id} doc={d} index={i} selected={i === sel} categoryLabel={label(d.category_id)} />
+            ))}
           </div>
         ) : (
           data &&
@@ -118,8 +135,14 @@ export function Documents() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.items.map((d) => (
-                    <TableRow key={d.id} className="cursor-pointer" onClick={() => navigate(`/documents/${d.id}`)}>
+                  {data.items.map((d, i) => (
+                    <TableRow
+                      key={d.id}
+                      data-doc-index={i}
+                      data-state={i === sel ? 'selected' : undefined}
+                      className={cn('cursor-pointer', i === sel && 'ring-2 ring-primary ring-inset')}
+                      onClick={() => navigate(`/documents/${d.id}`)}
+                    >
                       <TableCell className="max-w-md pl-4 whitespace-normal">
                         <div className="flex items-center gap-2 font-medium">
                           {d.title} <StatusBadge status={d.status} message={d.status_message} />
@@ -152,6 +175,7 @@ export function Documents() {
           </div>
         )}
       </div>
+      <ConfirmTrash id={trashId} title={items.find((d) => d.id === trashId)?.title} onOpenChange={(o) => !o && setTrashId(null)} />
     </>
   )
 }

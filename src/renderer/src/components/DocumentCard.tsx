@@ -26,11 +26,22 @@ export function Thumbnail({ id, updatedAt, className }: { id: string; updatedAt:
   )
 }
 
-export function DocumentCard({ doc, categoryLabel }: { doc: DocumentListItem; categoryLabel: string }) {
+export function DocumentCard({
+  doc,
+  categoryLabel,
+  selected,
+  index
+}: {
+  doc: DocumentListItem
+  categoryLabel: string
+  selected?: boolean
+  index?: number
+}) {
   return (
     <Link
       to={`/documents/${doc.id}`}
-      className="group flex flex-col overflow-hidden rounded-xl border bg-card shadow-xs transition-shadow hover:shadow-md"
+      data-doc-index={index}
+      className={`group flex flex-col overflow-hidden rounded-xl border bg-card shadow-xs transition-shadow hover:shadow-md ${selected ? 'ring-2 ring-primary' : ''}`}
     >
       <Thumbnail id={doc.id} updatedAt={doc.updated_at} className="aspect-[4/3] w-full border-b" />
       <div className="flex flex-1 flex-col gap-2 p-4">
