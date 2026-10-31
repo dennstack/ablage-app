@@ -1,0 +1,67 @@
+categories:
+  - id: rechnung
+    label: Rechnung
+    keywords: [rechnung, invoice, betrag, zahlung, fällig]
+    subcategories:
+      - id: rechnung_handwerk
+        label: Handwerk
+        keywords: [handwerker, montage, installation, reparatur]
+      - id: rechnung_telko
+        label: Telekommunikation
+        keywords: [telekom, vodafone, o2, internet, mobilfunk]
+      - id: rechnung_shopping
+        label: Online-Shopping
+        keywords: [amazon, bestellung, lieferung, paket]
+
+  - id: vertrag
+    label: Vertrag
+    keywords: [vertrag, vereinbarung, konditionen, laufzeit, kündigung]
+    subcategories:
+      - id: vertrag_internet
+        label: Internet
+        keywords: [dsl, glasfaser, breitband, internet]
+      - id: vertrag_mobilfunk
+        label: Mobilfunk
+        keywords: [mobilfunk, handy, sim, datentarif]
+      - id: vertrag_strom
+        label: Strom/Gas
+        keywords: [strom, gas, energie, versorger]
+      - id: vertrag_miete
+        label: Miete
+        keywords: [miete, mietvertrag, nebenkosten, kaution]
+
+  - id: behoerde
+    label: Behörden
+    keywords: [bescheid, behörde, amt, antrag, aktenzeichen]
+    subcategories:
+      - id: behoerde_finanzamt
+        label: Finanzamt
+        keywords: [finanzamt, steuer, steuerbescheid, steueridentifikation]
+      - id: behoerde_gemeinde
+        label: Gemeinde / Stadt
+        keywords: [gemeinde, rathaus, bürgeramt, meldebescheinigung]
+      - id: behoerde_gkv
+        label: Krankenkasse
+        keywords: [krankenkasse, krankenversicherung, aok, tkk, barmer]
+
+  - id: versicherung
+    label: Versicherung
+    keywords: [versicherung, police, versicherungsschein, prämie]
+    subcategories:
+      - id: versicherung_kfz
+        label: KFZ
+        keywords: [kfz, auto, fahrzeug, haftpflicht kfz]
+      - id: versicherung_haftpflicht
+        label: Haftpflicht
+        keywords: [haftpflicht, privathaftpflicht]
+      - id: versicherung_hausrat
+        label: Hausrat
+        keywords: [hausrat, hausratversicherung, inventar]
+
+  - id: sonstiges
+    label: Sonstiges
+    keywords: []
+
+  - id: unbekannt
+    label: Unbekannt
+    keywords: []

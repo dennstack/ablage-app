@@ -1,0 +1,21 @@
+appId: de.dennstack.ablage
+productName: Ablage
+directories:
+  buildResources: build
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: resources/categories.yaml
+    to: categories.yaml
+win:
+  # nsis needs wine on Linux/WSL; portable and zip do not
+  target:
+    - portable
+    - zip
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-Setup-${version}.${ext}
