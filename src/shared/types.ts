@@ -78,6 +78,7 @@ export type ReferenceInput = Omit<PhysicalReference, 'id' | 'created_at'>
 export type FolderInput = Omit<PhysicalFolder, 'created_at'>
 
 export type ClassifierMode = 'ollama' | 'rules'
+export type ThemeMode = 'system' | 'light' | 'dark'
 
 export interface Settings {
   libraryPath: string | null
@@ -88,6 +89,7 @@ export interface Settings {
   classifierMode: ClassifierMode
   watchInbox: boolean
   inboxPollSeconds: number
+  theme: ThemeMode
   /** First-run wizard (library + Ollama check) finished. */
   setupCompleted: boolean
 }

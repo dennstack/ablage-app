@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
 :root {
   --radius: 0.625rem;
@@ -28,6 +28,36 @@
   --sidebar-accent: oklch(0.34 0.05 252);
   --sidebar-accent-foreground: oklch(0.98 0 0);
   --sidebar-border: oklch(1 0 0 / 8%);
+}
+
+/* nativeTheme.themeSource drives prefers-color-scheme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: oklch(0.18 0.012 260);
+    --foreground: oklch(0.93 0.006 264);
+    --card: oklch(0.215 0.014 260);
+    --card-foreground: oklch(0.93 0.006 264);
+    --popover: oklch(0.235 0.015 260);
+    --popover-foreground: oklch(0.93 0.006 264);
+    --primary: oklch(0.65 0.15 255);
+    --primary-foreground: oklch(0.16 0.02 260);
+    --secondary: oklch(0.27 0.015 260);
+    --secondary-foreground: oklch(0.93 0.006 264);
+    --muted: oklch(0.27 0.015 260);
+    --muted-foreground: oklch(0.7 0.02 264);
+    --accent: oklch(0.29 0.03 255);
+    --accent-foreground: oklch(0.95 0.006 264);
+    --destructive: oklch(0.66 0.2 25);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 14%);
+    --ring: oklch(0.65 0.15 255);
+    --sidebar: oklch(0.155 0.014 255);
+    --sidebar-foreground: oklch(0.72 0.03 250);
+    --sidebar-accent: oklch(0.26 0.04 252);
+    --sidebar-accent-foreground: oklch(0.98 0 0);
+    --sidebar-border: oklch(1 0 0 / 7%);
+  }
 }
 
 @theme inline {
@@ -74,6 +104,6 @@
     font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
   }
   mark {
-    @apply rounded-sm bg-yellow-200 px-0.5 text-inherit;
+    @apply rounded-sm bg-yellow-200 px-0.5 text-inherit dark:bg-yellow-500/40;
   }
 }

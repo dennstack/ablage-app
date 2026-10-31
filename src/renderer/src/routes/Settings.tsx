@@ -153,6 +153,27 @@ export function Settings() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Darstellung</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1.5">
+              <Label>Farbschema</Label>
+              <Select value={s.theme} onValueChange={(v) => void save({ theme: v as SettingsT['theme'] })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="system">Wie System</SelectItem>
+                  <SelectItem value="light">Hell</SelectItem>
+                  <SelectItem value="dark">Dunkel</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Kategorien</CardTitle>
             <CardDescription>Werden in categories.yaml gepflegt (eine Ebene Unterkategorien).</CardDescription>
           </CardHeader>

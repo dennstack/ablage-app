@@ -1,5 +1,5 @@
 import { stat } from 'node:fs/promises'
-import { dialog, ipcMain, type IpcMainInvokeEvent, shell, type BrowserWindow } from 'electron'
+import { dialog, ipcMain, type IpcMainInvokeEvent, nativeTheme, shell, type BrowserWindow } from 'electron'
 import { z } from 'zod'
 import type { AblageApi, Channel } from '@shared/ipc'
 import type { ImportResult } from '@shared/types'
@@ -50,7 +50,8 @@ const settingsPatch = z
     classifierMode: z.enum(['ollama', 'rules']),
     watchInbox: z.boolean(),
     inboxPollSeconds: z.number().int().min(2).max(3600),
-    setupCompleted: z.boolean()
+    setupCompleted: z.boolean(),
+    theme: z.enum(['system', 'light', 'dark'])
   })
   .partial()
 
@@ -72,7 +73,11 @@ export function registerIpc(ctx: AppContext, getWindow: () => BrowserWindow | nu
   }
 
   handle('settings:get', () => ctx.settings.get())
-  handle('settings:update', (patch) => ctx.updateSettings(settingsPatch.parse(patch)))
+  handle('settings:update', (patch) => {
+    const s = ctx.updateSettings(settingsPatch.parse(patch))
+    nativeTheme.themeSource = s.theme
+    return s
+  })
   handle('settings:pickLibrary', async () => {
     const win = getWindow()
     const opts = { title: 'Bibliotheksordner wählen', properties: ['openDirectory', 'createDirectory'] as ('openDirectory' | 'createDirectory')[] }

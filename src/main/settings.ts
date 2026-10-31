@@ -11,6 +11,7 @@ export const defaultSettings: Settings = {
   classifierMode: 'ollama',
   watchInbox: true,
   inboxPollSeconds: 10,
+  theme: 'system',
   setupCompleted: false
 }
 

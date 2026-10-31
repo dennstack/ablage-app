@@ -32,7 +32,7 @@ export function OllamaStatusLine({ status }: { status: OllamaStatus }) {
     )
   }
   return (
-    <span className="flex items-center gap-1.5 text-sm text-green-700">
+    <span className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-400">
       <CheckCircle2 className="size-4 shrink-0" /> Erreichbar ({status.latency_ms} ms, {status.models.length} Modelle)
     </span>
   )
@@ -44,11 +44,11 @@ export function OllamaHelp({ status }: { status: OllamaStatus }) {
 
   const install = installCommand(status.platform)
   return (
-    <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm dark:bg-amber-950/30">
+    <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-800 dark:bg-amber-950/30">
       {!status.reachable && status.installed === false && (
         <>
           <p className="flex items-center gap-1.5 font-medium">
-            <AlertTriangle className="size-4 text-amber-600" /> Ollama ist auf diesem Rechner nicht installiert.
+            <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" /> Ollama ist auf diesem Rechner nicht installiert.
           </p>
           <p className="text-muted-foreground">
             Ollama führt die KI-Modelle lokal aus. Ohne Ollama werden Dokumente nur per Stichwortregeln einsortiert und gescannte
@@ -67,7 +67,7 @@ export function OllamaHelp({ status }: { status: OllamaStatus }) {
       {!status.reachable && status.installed === true && (
         <>
           <p className="flex items-center gap-1.5 font-medium">
-            <AlertTriangle className="size-4 text-amber-600" /> Ollama ist installiert, läuft aber nicht.
+            <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" /> Ollama ist installiert, läuft aber nicht.
           </p>
           <p className="text-muted-foreground">Ollama-App starten oder im Terminal ausführen:</p>
           <Command cmd="ollama serve" />
@@ -76,7 +76,7 @@ export function OllamaHelp({ status }: { status: OllamaStatus }) {
       {!status.reachable && status.installed === null && (
         <>
           <p className="flex items-center gap-1.5 font-medium">
-            <AlertTriangle className="size-4 text-amber-600" /> Der Ollama-Server unter der angegebenen Adresse antwortet nicht.
+            <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" /> Der Ollama-Server unter der angegebenen Adresse antwortet nicht.
           </p>
           <p className="text-muted-foreground">
             Prüfe, ob der Server läuft und im Netzwerk erreichbar ist (dort <code>OLLAMA_HOST=0.0.0.0</code> setzen). Für eine lokale
@@ -87,7 +87,7 @@ export function OllamaHelp({ status }: { status: OllamaStatus }) {
       {status.reachable && status.missingModels.length > 0 && (
         <>
           <p className="flex items-center gap-1.5 font-medium">
-            <AlertTriangle className="size-4 text-amber-600" /> Folgende Modelle fehlen noch:
+            <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" /> Folgende Modelle fehlen noch:
           </p>
           {status.missingModels.map((m) => (
             <Command key={m} cmd={`ollama pull ${m}`} />
@@ -103,7 +103,7 @@ function CheckRow({ label, check }: { label: string; check: ModelCheck }) {
   return (
     <div className="flex items-start gap-2 text-sm">
       {check.ok ? (
-        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-700" />
+        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-green-700 dark:text-green-400" />
       ) : (
         <XCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
       )}

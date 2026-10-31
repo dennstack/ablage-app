@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { app, BrowserWindow, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, nativeTheme, net, protocol, shell } from 'electron'
 import { AppContext } from './context'
 import { registerIpc } from './ipc'
 
@@ -34,6 +34,7 @@ function createWindow(): void {
     // packaged builds take the icon from the executable
     icon: app.isPackaged ? undefined : join(app.getAppPath(), 'build/icon.png'),
     autoHideMenuBar: true,
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#16181d' : '#f9fafb',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
@@ -97,6 +98,7 @@ if (!app.requestSingleInstanceLock()) {
       bundledCategories,
       notify: (id) => mainWindow?.webContents.send('documents:changed', { id })
     })
+    nativeTheme.themeSource = ctx.settings.get().theme
     registerProtocol()
     registerIpc(ctx, () => mainWindow, isTrusted)
     await ctx.start()
