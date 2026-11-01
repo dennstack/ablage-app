@@ -1,3 +1,4 @@
+import { FALLBACK_CATEGORY } from '@shared/categories'
 import type { Category } from '@shared/types'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 
@@ -34,10 +35,12 @@ export function CategorySelect({
             ))}
           </SelectGroup>
         ))}
-        <SelectGroup>
-          <SelectLabel>Weitere</SelectLabel>
-          <SelectItem value="sonstiges">Sonstiges</SelectItem>
-        </SelectGroup>
+        {!categories.some((c) => c.id === FALLBACK_CATEGORY) && (
+          <SelectGroup>
+            <SelectLabel>Weitere</SelectLabel>
+            <SelectItem value={FALLBACK_CATEGORY}>Sonstiges</SelectItem>
+          </SelectGroup>
+        )}
       </SelectContent>
     </Select>
   )

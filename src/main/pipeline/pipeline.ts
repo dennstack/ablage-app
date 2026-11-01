@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
-import type { Document, DocumentPatch, ImportResult, Settings } from '@shared/types'
+import type { CategorySaveResult, Document, DocumentPatch, ImportResult, Settings } from '@shared/types'
 import type { Categories } from '../categories'
 import type { Classifier } from '../classifier/types'
 import type { DocumentRepo } from '../db/documents'
@@ -182,6 +182,22 @@ export class Pipeline {
     await library.writeSidecar(doc)
     this.d.notify(id)
     return doc
+  }
+
+  /** A failed document keeps its old path and moves on its next edit. */
+  async applyCategoryPatches(items: { id: string; patch: DocumentPatch }[]): Promise<CategorySaveResult> {
+    const result: CategorySaveResult = { moved: 0, failed: [] }
+    for (const { id, patch } of items) {
+      const before = this.d.docs.get(id)
+      if (!before) continue
+      try {
+        const doc = await this.updateMetadata(id, patch)
+        if (doc.relative_path !== before.relative_path) result.moved++
+      } catch (err) {
+        result.failed.push({ id, title: before.title, message: (err as Error).message })
+      }
+    }
+    return result
   }
 
   async trash(id: string): Promise<void> {

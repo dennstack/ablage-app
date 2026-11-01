@@ -64,3 +64,38 @@ describe('references', () => {
     expect(refs.codeExists('C0DE')).toBe(true)
   })
 })
+
+describe('category usage', () => {
+  it('counts active, trashed and referenced ids separately', () => {
+    const { docs, refs } = setup()
+    docs.insert(makeDoc({ category_id: 'vertrag' }))
+    docs.insert(makeDoc({ category_id: 'vertrag', deleted_at: new Date().toISOString() }))
+    refs.createFolder({ code: 'A1', label: 'Ordner', location: null })
+    refs.create({ folder_code: 'A1', doc_id_code: 'C0DE', title: 'Mietvertrag', category_id: 'vertrag', description: null, doc_date: null, sender: null })
+
+    expect(docs.countByCategory()).toEqual([{ category_id: 'vertrag', documents: 1, trashed: 1 }])
+    expect(refs.countByCategory()).toEqual([{ category_id: 'vertrag', references: 1 }])
+  })
+
+  it('finds documents by exact category id, including trash', () => {
+    const { docs } = setup()
+    const active = makeDoc({ category_id: 'vertrag' })
+    const trashed = makeDoc({ category_id: 'vertrag', deleted_at: new Date().toISOString() })
+    docs.insert(active)
+    docs.insert(trashed)
+    docs.insert(makeDoc({ category_id: 'vertrag_miete' }))
+
+    expect(docs.idsByCategories([])).toEqual([])
+    expect(docs.idsByCategories(['vertrag']).map((d) => d.id).sort()).toEqual([active.id, trashed.id].sort())
+  })
+
+  it('reassigns references', () => {
+    const { refs } = setup()
+    refs.createFolder({ code: 'A1', label: 'Ordner', location: null })
+    const ref = refs.create({ folder_code: 'A1', doc_id_code: 'C0DE', title: 'T', category_id: 'alt', description: null, doc_date: null, sender: null })
+
+    expect(refs.reassignCategory('alt', 'neu')).toBe(1)
+    expect(refs.get(ref.id)?.category_id).toBe('neu')
+    expect(refs.reassignCategory('alt', 'neu')).toBe(0)
+  })
+})

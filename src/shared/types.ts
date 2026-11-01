@@ -51,6 +51,23 @@ export interface Category {
   subcategories?: Category[]
 }
 
+export interface CategoryUsage {
+  documents: number
+  trashed: number
+  references: number
+}
+
+export interface CategorySaveInput {
+  categories: Category[]
+  /** Deleted category id → id that takes over its documents and references. */
+  reassign: Record<string, string>
+}
+
+export interface CategorySaveResult {
+  moved: number
+  failed: { id: string; title: string; message: string }[]
+}
+
 export interface PhysicalFolder {
   code: string
   label: string

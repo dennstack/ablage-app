@@ -112,6 +112,25 @@ export class DocumentRepo {
     return rows.map((r) => r.id)
   }
 
+  countByCategory(): { category_id: string; documents: number; trashed: number }[] {
+    return this.db
+      .prepare(
+        `SELECT category_id,
+          COALESCE(SUM(deleted_at IS NULL), 0) AS documents,
+          COALESCE(SUM(deleted_at IS NOT NULL), 0) AS trashed
+         FROM documents GROUP BY category_id`
+      )
+      .all() as unknown as { category_id: string; documents: number; trashed: number }[]
+  }
+
+  /** Includes trashed documents. */
+  idsByCategories(ids: string[]): { id: string; category_id: string; deleted_at: string | null }[] {
+    if (ids.length === 0) return []
+    return this.db
+      .prepare(`SELECT id, category_id, deleted_at FROM documents WHERE category_id IN (${ids.map(() => '?').join(', ')})`)
+      .all(...ids) as unknown as { id: string; category_id: string; deleted_at: string | null }[]
+  }
+
   counts(): { total: number; pending: number; errors: number } {
     return this.db
       .prepare(

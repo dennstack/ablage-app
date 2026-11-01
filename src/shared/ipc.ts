@@ -1,5 +1,8 @@
 import type {
   Category,
+  CategorySaveInput,
+  CategorySaveResult,
+  CategoryUsage,
   DashboardData,
   Document,
   DocumentPage,
@@ -29,6 +32,8 @@ export interface AblageApi {
 
   'categories:list'(): Category[]
   'categories:openFile'(): void
+  'categories:usage'(): Record<string, CategoryUsage>
+  'categories:save'(input: CategorySaveInput): CategorySaveResult
 
   'dashboard:get'(): DashboardData
 
@@ -72,6 +77,8 @@ export const channels: Channel[] = [
   'settings:openLibrary',
   'categories:list',
   'categories:openFile',
+  'categories:usage',
+  'categories:save',
   'dashboard:get',
   'documents:list',
   'documents:get',

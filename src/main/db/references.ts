@@ -86,6 +86,17 @@ export class ReferenceRepo {
     return !!this.db.prepare('SELECT 1 FROM physical_references WHERE doc_id_code = ?').get(code)
   }
 
+  countByCategory(): { category_id: string; references: number }[] {
+    return this.db
+      .prepare('SELECT category_id, COUNT(*) AS "references" FROM physical_references GROUP BY category_id')
+      .all() as unknown as { category_id: string; references: number }[]
+  }
+
+  /** Returns the number of changed references. */
+  reassignCategory(from: string, to: string): number {
+    return Number(this.db.prepare('UPDATE physical_references SET category_id = ? WHERE category_id = ?').run(to, from).changes)
+  }
+
   count(): number {
     return (this.db.prepare('SELECT COUNT(*) AS n FROM physical_references').get() as { n: number }).n
   }

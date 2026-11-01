@@ -44,12 +44,17 @@ export function useData<T>(load: () => Promise<T>, deps: unknown[] = [], liveRel
 }
 
 let categoryCache: Promise<Category[]> | null = null
+const categorySubscribers = new Set<(categories: Category[]) => void>()
 
 export function useCategories() {
   const [categories, setCategories] = useState<Category[]>([])
   useEffect(() => {
+    categorySubscribers.add(setCategories)
     categoryCache ??= api['categories:list']()
     void categoryCache.then(setCategories)
+    return () => {
+      categorySubscribers.delete(setCategories)
+    }
   }, [])
   const label = useCallback(
     (id: string) => {
@@ -65,8 +70,17 @@ export function useCategories() {
   return { categories, label }
 }
 
-export function invalidateCategories(): void {
-  categoryCache = null
+/** Reloads categories and updates every mounted `useCategories`. */
+export async function invalidateCategories(): Promise<void> {
+  const pending = api['categories:list']()
+  categoryCache = pending
+  try {
+    const categories = await pending
+    categorySubscribers.forEach((notify) => notify(categories))
+  } catch (err) {
+    if (categoryCache === pending) categoryCache = null
+    throw err
+  }
 }
 
 export function useDebounced<T>(value: T, ms = 250): T {

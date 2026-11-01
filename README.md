@@ -5,6 +5,7 @@ Persönliche Dokumentenablage als Electron-App für Windows. Port von `ablage` (
 - Dateien liegen in einem frei wählbaren **Bibliotheksordner** (lokal oder `\\nas\share`), den die App selbst verwaltet.
 - Texterkennung: PDF-Textlayer via pdf.js, Scans/Bilder via **Ollama-Vision-Modell**.
 - Klassifikation via Ollama (Fallback: Stichwortregeln aus `categories.yaml`).
+- Kategorien lassen sich in den Einstellungen bearbeiten. Umbenennen einer Hauptkategorie verschiebt die Dateien sofort.
 - Volltextsuche mit SQLite FTS5 (`node:sqlite`, keine nativen Module).
 - Physische Referenzen (Ordner-Code + Dokument-Code) für Papier, das im Ordner bleibt.
 
@@ -42,6 +43,7 @@ Node ≥ 22. Unter Windows ausführen (oder WSLg).
 npm install
 npm run dev          # App mit Hot Reload
 npm test             # Vitest
+npm run test:e2e     # Playwright gegen die gebaute Electron-App
 npm run typecheck
 npm run build:win    # Portable-Exe + ZIP in dist/ (ohne wine baubar)
 ```

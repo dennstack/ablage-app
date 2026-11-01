@@ -6,3 +6,4 @@ dist/
 src/renderer/public/pdfjs/
 *.tsbuildinfo
 notes/
+test-results/

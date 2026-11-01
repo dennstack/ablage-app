@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { FolderOpen, RefreshCw } from 'lucide-react'
 import type { OllamaStatus, Settings as SettingsT } from '@shared/types'
@@ -17,6 +18,7 @@ export function Settings() {
   const [s, setS] = useState<SettingsT | null>(null)
   const [ollama, setOllama] = useState<OllamaStatus | null>(null)
   const [testing, setTesting] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
     void api['settings:get']().then(setS)
@@ -175,17 +177,20 @@ export function Settings() {
         <Card>
           <CardHeader>
             <CardTitle>Kategorien</CardTitle>
-            <CardDescription>Werden in categories.yaml gepflegt (eine Ebene Unterkategorien).</CardDescription>
+            <CardDescription>Werden in categories.yaml gespeichert (eine Ebene Unterkategorien).</CardDescription>
           </CardHeader>
           <CardContent className="flex gap-2">
+            <Button onClick={() => void navigate('/settings/categories')}>Kategorien bearbeiten</Button>
             <Button variant="outline" onClick={() => void api['categories:openFile']()}>
               Datei bearbeiten
             </Button>
             <Button
               variant="ghost"
               onClick={() => {
-                invalidateCategories()
-                toast.success('Kategorien werden beim nächsten Seitenwechsel neu geladen')
+                invalidateCategories().then(
+                  () => toast.success('Kategorien neu geladen'),
+                  (err: unknown) => toast.error(errorMessage(err))
+                )
               }}
             >
               Neu laden

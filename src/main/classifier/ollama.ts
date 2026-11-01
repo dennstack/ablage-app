@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { FALLBACK_CATEGORY } from '@shared/categories'
 import type { Category } from '@shared/types'
 import { ollamaFetch } from '../ocr/vision'
 import { isValidDate } from './rules'
@@ -100,13 +101,13 @@ export function buildPrompt(categories: Category[], text: string): string {
   const catList = categories
     .flatMap((c) => [`- ${c.id} (${c.label})`, ...(c.subcategories ?? []).map((s) => `  - ${s.id} (${s.label})`)])
     .join('\n')
+  const fallback = categories.some((c) => c.id === FALLBACK_CATEGORY) ? '' : `\n- ${FALLBACK_CATEGORY} (Sonstiges)`
   const body = text.length > MAX_TEXT ? `${text.slice(0, MAX_TEXT)}\n[…gekürzt]` : text
 
   return `Analysiere den folgenden OCR-Text eines Dokuments und extrahiere die Metadaten.
 
 Verfügbare Kategorien:
-${catList}
-- sonstiges (Sonstiges)
+${catList}${fallback}
 
 Antworte ausschließlich als JSON mit folgenden Feldern:
 - category_id: Die passendste Kategorie-ID aus der Liste oben

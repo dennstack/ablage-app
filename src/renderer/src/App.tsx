@@ -4,6 +4,7 @@ import { AppShell } from '@/components/AppShell'
 import { Toaster } from '@/components/ui/sonner'
 import type { Settings as SettingsT } from '@shared/types'
 import { api } from '@/lib/api'
+import { Categories } from '@/routes/Categories'
 import { Dashboard } from '@/routes/Dashboard'
 import { DocumentDetail } from '@/routes/DocumentDetail'
 import { Documents } from '@/routes/Documents'
@@ -36,6 +37,7 @@ export function App() {
               <Route path="/references" element={<References />} />
               <Route path="/trash" element={<Trash />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/settings/categories" element={<Categories />} />
             </Routes>
           </AppShell>
         </HashRouter>

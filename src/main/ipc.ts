@@ -2,7 +2,8 @@ import { stat } from 'node:fs/promises'
 import { dialog, ipcMain, type IpcMainInvokeEvent, nativeTheme, shell, type BrowserWindow } from 'electron'
 import { z } from 'zod'
 import type { AblageApi, Channel } from '@shared/ipc'
-import type { ImportResult } from '@shared/types'
+import type { CategoryUsage, ImportResult } from '@shared/types'
+import { planChange } from './categories'
 import type { AppContext } from './context'
 import { checkOllama, OLLAMA_DOWNLOAD_URL, testModels } from './classifier/health'
 import { rebuildFromLibrary } from './library/rebuild'
@@ -41,6 +42,17 @@ const folderInput = z.object({
   location: optText
 })
 
+const categoryFields = {
+  id: z.string().min(1),
+  label: z.string().trim().min(1),
+  keywords: z.array(z.string().trim().min(1))
+}
+
+const categorySave = z.object({
+  categories: z.array(z.object({ ...categoryFields, subcategories: z.array(z.object(categoryFields)).optional() })),
+  reassign: z.record(z.string(), z.string())
+})
+
 const settingsPatch = z
   .object({
     pathTemplate: z.string().trim().min(1),
@@ -62,6 +74,18 @@ export function registerIpc(ctx: AppContext, getWindow: () => BrowserWindow | nu
       return (fn as (...a: unknown[]) => unknown)(...args)
     })
   }
+
+  const categoryUsage = (): Record<string, CategoryUsage> => {
+    const usage: Record<string, CategoryUsage> = {}
+    const entry = (id: string): CategoryUsage => (usage[id] ??= { documents: 0, trashed: 0, references: 0 })
+    for (const { category_id, documents, trashed } of ctx.docs.countByCategory()) {
+      Object.assign(entry(category_id), { documents, trashed })
+    }
+    for (const { category_id, references } of ctx.refs.countByCategory()) entry(category_id).references = references
+    return usage
+  }
+
+  let savingCategories = false
 
   const importPaths = async (paths: string[]): Promise<ImportResult[]> => {
     const results: ImportResult[] = []
@@ -99,6 +123,38 @@ export function registerIpc(ctx: AppContext, getWindow: () => BrowserWindow | nu
   })
   handle('categories:openFile', async () => {
     await shell.openPath(ctx.categories.file)
+  })
+  handle('categories:usage', categoryUsage)
+  handle('categories:save', async (input) => {
+    if (savingCategories) throw new Error('Kategorien werden gerade gespeichert.')
+    savingCategories = true
+    try {
+      const { categories, reassign } = categorySave.parse(input)
+      await ctx.pipeline.idle()
+      ctx.categories.reload()
+      const usage = categoryUsage()
+      const plan = planChange(ctx.categories.all(), categories, reassign, new Set(Object.keys(usage)))
+      ctx.categories.save(categories)
+
+      const removed = new Set(plan.removed)
+      const targetOf = (id: string): string | undefined => (removed.has(id) ? reassign[id] : undefined)
+
+      let changedRefs = 0
+      for (const id of plan.removed) {
+        const target = targetOf(id)
+        if (target) changedRefs += ctx.refs.reassignCategory(id, target)
+      }
+      if (changedRefs > 0) await ctx.saveReferences()
+
+      const items = ctx.docs.idsByCategories([...plan.removed, ...plan.relocate]).flatMap((doc) => {
+        const target = targetOf(doc.category_id)
+        if (target) return [{ id: doc.id, patch: { category_id: target } }]
+        return doc.deleted_at ? [] : [{ id: doc.id, patch: {} }]
+      })
+      return await ctx.pipeline.applyCategoryPatches(items)
+    } finally {
+      savingCategories = false
+    }
   })
 
   handle('dashboard:get', () => ({
