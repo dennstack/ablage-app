@@ -5,7 +5,7 @@ import type { Settings } from '@shared/types'
 export const defaultSettings: Settings = {
   libraryPath: null,
   pathTemplate: '{category}/{year}/{date}_{sender}_{title}',
-  ollamaUrl: 'http://192.168.178.71:11434',
+  ollamaUrl: 'http://localhost:11434',
   ollamaModel: 'mistral',
   ollamaVisionModel: 'qwen2.5vl',
   classifierMode: 'ollama',
