@@ -54,6 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex items-center gap-2 px-5 py-5 text-sidebar-accent-foreground">
           <img src={logo} alt="" className="size-6" />
           <span className="text-lg font-semibold tracking-tight">Ablage</span>
+          <span className="mt-1 text-xs opacity-60">{import.meta.env.DEV ? 'dev' : `v${__APP_VERSION__}`}</span>
         </div>
         <div className="px-3 pb-3">
           <Button className="w-full justify-start" onClick={() => void pickAndImport()}>

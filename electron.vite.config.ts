@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 const shared = { '@shared': resolve('src/shared') }
+const { version } = JSON.parse(readFileSync('package.json', 'utf8'))
 
 export default defineConfig({
   main: { resolve: { alias: shared } },
@@ -16,6 +18,7 @@ export default defineConfig({
     }
   },
   renderer: {
+    define: { __APP_VERSION__: JSON.stringify(version) },
     resolve: { alias: { ...shared, '@': resolve('src/renderer/src') } },
     plugins: [react(), tailwindcss()],
     build: {
