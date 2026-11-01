@@ -38,7 +38,7 @@ flowchart LR
 |---|---|
 | 🧠 **Lokale KI** | Texterkennung und Klassifikation laufen über dein eigenes [Ollama](https://ollama.com). |
 | 📁 **Lokale Daten** | Dokumente und Metadaten liegen in deinem Bibliotheksordner, der Suchindex auf deinem Rechner. |
-| 🚫 **Keine Cloud** | Kein Konto, keine Telemetrie, kein automatisches Update. |
+| 🚫 **Keine Cloud** | Kein Konto, keine Telemetrie. Updates sind optional und standardmäßig aus. |
 | 🔓 **Offenes Format** | Normale Dateien und JSON-Sidecars. Du kommst auch ohne die App an alles heran. |
 
 Läuft Ollama auf einem anderen Gerät, gehen Dokumentinhalte unverschlüsselt per HTTP dorthin. Nutze dafür nur einen Rechner in deinem vertrauenswürdigen Netz.
@@ -57,7 +57,13 @@ Läuft Ollama auf einem anderen Gerät, gehen Dokumentinhalte unverschlüsselt p
 
 **1. Ablage installieren**
 
-**Windows:** Unter [Releases](https://github.com/dennstack/ablage-app/releases/latest) die Portable-Exe oder das ZIP laden und direkt starten. Die Pakete sind nicht signiert, Windows warnt deshalb beim ersten Start.
+**Windows:** Unter [Releases](https://github.com/dennstack/ablage-app/releases/latest) eine Variante laden. Die Pakete sind nicht signiert, Windows warnt deshalb beim ersten Start.
+
+| Paket | Installation | Updates |
+|---|---|---|
+| `Ablage-Setup-<version>.exe` | Installer | automatisch, wenn eingeschaltet |
+| `Ablage-<version>-portable.exe` | keine | von Hand |
+| `Ablage-<version>-win.zip` | entpacken | von Hand |
 
 **macOS und Linux:** Fertige Pakete gibt es nicht. Du baust sie selbst, siehe [Selbst bauen](#selbst-bauen).
 
@@ -118,6 +124,14 @@ Der App-Speicher enthält Einstellungen, Kategorien, Vorschaubilder und die SQLi
 > [!TIP]
 > Sichere den Bibliotheksordner inklusive `.ablage/`. Das genügt für alle Dokumente und Metadaten. Einstellungen und eigene Kategorien liegen im App-Speicher und brauchen ein eigenes Backup.
 
+### Updates
+
+Automatische Updates gibt es nur mit dem Installer. Du schaltest sie bei der Einrichtung oder in den Einstellungen ein, standardmäßig sind sie aus.
+
+Eingeschaltet fragt die App alle 6 Stunden GitHub Releases nach einer neuen Version und lädt sie herunter. GitHub sieht dabei deine IP-Adresse, Dokumente werden nicht übertragen. Installiert wird beim nächsten Beenden oder per **Update installieren**.
+
+Portable-, ZIP- und selbst gebaute Versionen nehmen keinen Kontakt zu GitHub auf.
+
 ### Konfiguration
 
 URL, Modelle und Klassifikationsmodus stehen in den Einstellungen. `Verbindung testen` prüft Ollama.
@@ -147,6 +161,7 @@ npm test             # Vitest
 npm run test:e2e     # Playwright gegen die gebaute Electron-App
 npm run typecheck
 npm run build:win    # Portable-Exe + ZIP in dist/ (ohne wine baubar)
+npm run build:win:release  # zusätzlich NSIS-Installer + latest.yml, läuft in CI
 ```
 
 `ABLAGE_USER_DATA=<pfad>` startet mit separatem Profil (Settings, DB, Thumbnails).

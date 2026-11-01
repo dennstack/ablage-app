@@ -12,7 +12,8 @@ export const defaultSettings: Settings = {
   watchInbox: true,
   inboxPollSeconds: 10,
   theme: 'system',
-  setupCompleted: false
+  setupCompleted: false,
+  autoUpdate: false
 }
 
 export class SettingsStore {

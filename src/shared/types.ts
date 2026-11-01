@@ -119,6 +119,19 @@ export interface Settings {
   theme: ThemeMode
   /** First-run wizard (library + Ollama check) finished. */
   setupCompleted: boolean
+  /** Opt-in: only this setting lets the app contact GitHub on its own. */
+  autoUpdate: boolean
+}
+
+export type UpdatePhase = 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'ready' | 'error'
+
+export interface UpdateState {
+  /** False for portable, ZIP and self-built versions: they never contact the update server. */
+  supported: boolean
+  phase: UpdatePhase
+  version?: string
+  percent?: number
+  error?: string
 }
 
 export interface ImportResult {

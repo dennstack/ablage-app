@@ -4,6 +4,7 @@ import { Archive, Bot, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
 import type { OllamaStatus, Settings } from '@shared/types'
 import { ModelTest, OllamaHelp, OllamaStatusLine } from '@/components/OllamaCheck'
 import { Button } from '@/components/ui/button'
+import { AutoUpdateSwitch } from '@/components/Updates'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -58,6 +59,8 @@ function OllamaStep({ initial, onFinish }: { initial: Settings; onFinish: (patch
   const [url, setUrl] = useState(initial.ollamaUrl)
   const [status, setStatus] = useState<OllamaStatus | null>(null)
   const [checking, setChecking] = useState(false)
+  const [updatesSupported, setUpdatesSupported] = useState(false)
+  const [autoUpdate, setAutoUpdate] = useState(false)
 
   const check = useCallback(async (u: string): Promise<void> => {
     setChecking(true)
@@ -74,6 +77,10 @@ function OllamaStep({ initial, onFinish }: { initial: Settings; onFinish: (patch
   useEffect(() => {
     void check(initial.ollamaUrl)
   }, [check, initial.ollamaUrl])
+
+  useEffect(() => {
+    void api['updates:state']().then((u) => setUpdatesSupported(u.supported))
+  }, [])
 
   const ready = status?.reachable && status.missingModels.length === 0
 
@@ -105,12 +112,13 @@ function OllamaStep({ initial, onFinish }: { initial: Settings; onFinish: (patch
         {status && <OllamaStatusLine status={status} />}
         {status && <OllamaHelp status={status} />}
         {ready && <ModelTest />}
+        {updatesSupported && <AutoUpdateSwitch checked={autoUpdate} onChange={setAutoUpdate} />}
       </CardContent>
       <CardFooter className="justify-between gap-2">
-        <Button variant="ghost" onClick={() => void onFinish({ classifierMode: 'rules' })}>
+        <Button variant="ghost" onClick={() => void onFinish({ classifierMode: 'rules', autoUpdate })}>
           Ohne Ollama fortfahren
         </Button>
-        <Button disabled={!ready} onClick={() => void onFinish({ classifierMode: 'ollama' })}>
+        <Button disabled={!ready} onClick={() => void onFinish({ classifierMode: 'ollama', autoUpdate })}>
           Fertig
         </Button>
       </CardFooter>

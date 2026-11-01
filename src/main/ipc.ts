@@ -10,6 +10,7 @@ import { REFERENCES_SYNC_KEY } from './pipeline/pipeline'
 import { checkOllama, OLLAMA_DOWNLOAD_URL, testModels } from './classifier/health'
 import { rebuildFromLibrary } from './library/rebuild'
 import { generateCode } from './lib/naming'
+import { RELEASES_URL, type Updater } from './updater'
 
 type Handler<C extends Channel> = (
   ...args: Parameters<AblageApi[C]>
@@ -67,11 +68,17 @@ const settingsPatch = z
     watchInbox: z.boolean(),
     inboxPollSeconds: z.number().int().min(2).max(3600),
     setupCompleted: z.boolean(),
+    autoUpdate: z.boolean(),
     theme: z.enum(['system', 'light', 'dark'])
   })
   .partial()
 
-export function registerIpc(ctx: AppContext, getWindow: () => BrowserWindow | null, isTrusted: (url: string) => boolean): void {
+export function registerIpc(
+  ctx: AppContext,
+  updater: Updater,
+  getWindow: () => BrowserWindow | null,
+  isTrusted: (url: string) => boolean
+): void {
   function handle<C extends Channel>(channel: C, fn: Handler<C>): void {
     ipcMain.handle(channel, (event: IpcMainInvokeEvent, ...args: unknown[]) => {
       if (!event.senderFrame || !isTrusted(event.senderFrame.url)) throw new Error('untrusted sender')
@@ -102,6 +109,7 @@ export function registerIpc(ctx: AppContext, getWindow: () => BrowserWindow | nu
   handle('settings:update', (patch) => {
     const s = ctx.updateSettings(settingsPatch.parse(patch))
     nativeTheme.themeSource = s.theme
+    updater.applySettings()
     return s
   })
   handle('settings:pickLibrary', async () => {
@@ -115,6 +123,11 @@ export function registerIpc(ctx: AppContext, getWindow: () => BrowserWindow | nu
   handle('settings:testOllama', () => checkOllama(ctx.settings.get()))
   handle('settings:testModels', (png) => testModels(ctx.settings.get(), ctx.categories.all(), z.instanceof(Uint8Array).parse(png)))
   handle('settings:openOllamaDownload', () => shell.openExternal(OLLAMA_DOWNLOAD_URL))
+  handle('updates:state', () => updater.get())
+  handle('updates:check', () => updater.check())
+  handle('updates:download', () => updater.download())
+  handle('updates:install', () => updater.requestInstall())
+  handle('updates:openDownloads', () => shell.openExternal(RELEASES_URL))
   handle('settings:openLibrary', async () => {
     await shell.openPath(ctx.library().root)
   })

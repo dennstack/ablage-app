@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { SEARCH_INPUT_ID, useHotkeys } from '@/lib/hotkeys'
 import { importFiles, pickAndImport } from '@/lib/import'
 import { ShortcutHelp } from './ShortcutHelp'
+import { UpdateReadyButton } from './Updates'
 import { cn } from '@/lib/utils'
 import logo from '@/assets/logo.svg'
 
@@ -60,6 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Button className="w-full justify-start" onClick={() => void pickAndImport()}>
             <Plus /> Importieren
           </Button>
+          <UpdateReadyButton />
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 px-3">
           {nav.map(({ to, label, icon: Icon, end }) => (
