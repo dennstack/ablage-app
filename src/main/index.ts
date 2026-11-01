@@ -3,7 +3,7 @@ import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, nativeTheme, net, protocol, shell } from 'electron'
 import { AppContext } from './context'
 import { registerIpc } from './ipc'
-import { isInstalledWindowsBuild, Updater } from './updater'
+import { isInstalledWindowsBuild, loadAutoUpdater, Updater } from './updater'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'ablage', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
@@ -107,7 +107,7 @@ if (!app.requestSingleInstanceLock()) {
     updater = new Updater({
       supported: isInstalledWindowsBuild(app.getPath('exe'), { packaged: app.isPackaged, platform: process.platform, productName: app.getName() }),
       autoEnabled: () => ctx.settings.get().autoUpdate,
-      load: async () => (await import('electron-updater')).autoUpdater,
+      load: loadAutoUpdater,
       notify: (state) => mainWindow?.webContents.send('updates:changed', state),
       quit: () => app.quit()
     })

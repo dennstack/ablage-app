@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { isInstalledWindowsBuild, Updater, type UpdateEngine, type UpdaterDeps } from '../src/main/updater'
+import { isInstalledWindowsBuild, loadAutoUpdater, Updater, type UpdateEngine, type UpdaterDeps } from '../src/main/updater'
 
 function fakeEngine() {
   const listeners = new Map<string, (arg: unknown) => void>()
@@ -20,6 +20,15 @@ function setup(over: Partial<UpdaterDeps> = {}) {
   const updater = new Updater({ supported: true, autoEnabled: () => false, load, notify: () => {}, quit, ...over })
   return { updater, load, quit, ...fake }
 }
+
+describe('loadAutoUpdater', () => {
+  it('reads autoUpdater from the default export', async () => {
+    const engine = { on: () => {} }
+    vi.doMock('electron-updater', () => ({ default: { autoUpdater: engine } }))
+    await expect(loadAutoUpdater()).resolves.toBe(engine)
+    vi.doUnmock('electron-updater')
+  })
+})
 
 describe('isInstalledWindowsBuild', () => {
   const opts = { packaged: true, platform: 'win32', productName: 'Ablage' }

@@ -17,6 +17,11 @@ export interface UpdaterDeps {
   quit(): void
 }
 
+/** autoUpdater is a lazy getter that Node's CJS-to-ESM import does not expose as a named export. */
+export async function loadAutoUpdater(): Promise<UpdateEngine> {
+  return (await import('electron-updater')).default.autoUpdater
+}
+
 /** Only the NSIS installer leaves an uninstaller next to the exe; portable and ZIP cannot replace themselves. */
 export function isInstalledWindowsBuild(
   exePath: string,
