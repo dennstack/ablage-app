@@ -3,6 +3,7 @@ import { pathToFileURL } from 'node:url'
 import { app, BrowserWindow, nativeTheme, net, protocol, shell } from 'electron'
 import { AppContext } from './context'
 import { registerIpc } from './ipc'
+import { isInstalledWindowsBuild, Updater } from './updater'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'ablage', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
@@ -14,9 +15,12 @@ app.commandLine.appendSwitch('lang', 'de-DE')
 // separate profile for tests / parallel instances
 if (process.env['ABLAGE_USER_DATA']) app.setPath('userData', process.env['ABLAGE_USER_DATA'])
 
+const INSTALL_EXIT_TIMEOUT_MS = 5000
+
 const devUrl = process.env['ELECTRON_RENDERER_URL']
 let mainWindow: BrowserWindow | null = null
 let ctx: AppContext
+let updater: Updater
 
 function isTrusted(url: string): boolean {
   if (devUrl) return url.startsWith(devUrl)
@@ -100,9 +104,17 @@ if (!app.requestSingleInstanceLock()) {
     })
     nativeTheme.themeSource = ctx.settings.get().theme
     registerProtocol()
-    registerIpc(ctx, () => mainWindow, isTrusted)
+    updater = new Updater({
+      supported: isInstalledWindowsBuild(app.getPath('exe'), { packaged: app.isPackaged, platform: process.platform, productName: app.getName() }),
+      autoEnabled: () => ctx.settings.get().autoUpdate,
+      load: async () => (await import('electron-updater')).autoUpdater,
+      notify: (state) => mainWindow?.webContents.send('updates:changed', state),
+      quit: () => app.quit()
+    })
+    registerIpc(ctx, updater, () => mainWindow, isTrusted)
     await ctx.start()
     createWindow()
+    updater.applySettings()
   })
 
   let quitting = false
@@ -113,6 +125,11 @@ if (!app.requestSingleInstanceLock()) {
     void ctx
       .shutdown()
       .catch((err) => console.error('shutdown failed:', err))
-      .finally(() => app.exit())
+      .finally(() => {
+        // the installer must not start before the shutdown has released the database
+        if (!updater?.installRequested) return app.exit()
+        updater.install()
+        setTimeout(() => app.exit(), INSTALL_EXIT_TIMEOUT_MS)
+      })
   })
 }

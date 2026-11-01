@@ -10,10 +10,14 @@ extraResources:
     to: categories.yaml
 win:
   icon: build/icon.ico
-  # nsis needs wine on Linux/WSL; portable and zip do not
+  # nsis needs wine on Linux/WSL, so only build:win:release builds it
   target:
     - portable
     - zip
+  publish:
+    provider: github
+    owner: dennstack
+    repo: ablage-app
 mac:
   icon: build/icon.png
   category: public.app-category.productivity

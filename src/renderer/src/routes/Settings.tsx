@@ -5,6 +5,7 @@ import { FolderOpen, RefreshCw } from 'lucide-react'
 import type { OllamaStatus, Settings as SettingsT } from '@shared/types'
 import { PageHeader } from '@/components/AppShell'
 import { ModelTest, OllamaHelp, OllamaStatusLine } from '@/components/OllamaCheck'
+import { UpdatesCard } from '@/components/Updates'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -173,6 +174,8 @@ export function Settings() {
             </div>
           </CardContent>
         </Card>
+
+        <UpdatesCard autoUpdate={s.autoUpdate} onAutoUpdate={(v) => void save({ autoUpdate: v })} />
 
         <Card>
           <CardHeader>

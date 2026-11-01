@@ -17,7 +17,8 @@ import type {
   PhysicalReference,
   RebuildResult,
   ReferenceInput,
-  Settings
+  Settings,
+  UpdateState
 } from './types'
 
 /** Every method maps 1:1 to an `ipcMain.handle(<name>)` channel. */
@@ -28,6 +29,11 @@ export interface AblageApi {
   'settings:testOllama'(): OllamaStatus
   'settings:testModels'(samplePng: Uint8Array): ModelTestResult
   'settings:openOllamaDownload'(): void
+  'updates:state'(): UpdateState
+  'updates:check'(): UpdateState
+  'updates:download'(): UpdateState
+  'updates:install'(): void
+  'updates:openDownloads'(): void
   'settings:openLibrary'(): void
 
   'categories:list'(): Category[]
@@ -104,12 +110,18 @@ export const channels: Channel[] = [
   'references:create',
   'references:update',
   'references:delete',
-  'references:generateCode'
+  'references:generateCode',
+  'updates:state',
+  'updates:check',
+  'updates:download',
+  'updates:install',
+  'updates:openDownloads'
 ]
 
 /** Main → renderer events. */
 export interface AblageEvents {
   'documents:changed': { id: string }
+  'updates:changed': UpdateState
 }
 
 export type Promisified<T> = {
