@@ -14,6 +14,20 @@ win:
   target:
     - portable
     - zip
+mac:
+  icon: build/icon.png
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+linux:
+  icon: build/icon.png
+  category: Office
+  target:
+    - AppImage
+    - tar.gz
 portable:
   artifactName: ${productName}-${version}-portable.${ext}
 nsis:
