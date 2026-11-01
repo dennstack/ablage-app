@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { LayoutGrid, List, X } from 'lucide-react'
+import { CardSizeToggle, cardGridClass, useCardSize } from '@/components/CardSize'
 import { DocumentCard } from '@/components/DocumentCard'
 import { CategorySelect } from '@/components/CategorySelect'
 import { ConfirmTrash } from '@/components/ConfirmTrash'
@@ -24,6 +25,7 @@ export function Documents() {
   const navigate = useNavigate()
   const { categories, label } = useCategories()
   const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('docView') as 'grid' | 'list') ?? 'grid')
+  const [cardSize, setCardSize] = useCardSize()
   const [limit, setLimit] = useState(PAGE)
   const q = params.get('q') ?? ''
   const category = params.get('category') ?? ''
@@ -88,14 +90,17 @@ export function Documents() {
         title="Dokumente"
         description={data ? `${data.total} Dokument${data.total === 1 ? '' : 'e'}` : undefined}
         actions={
-          <div className="flex rounded-md border p-0.5">
-            <Button size="icon" variant={view === 'grid' ? 'secondary' : 'ghost'} className="size-8" onClick={() => switchView('grid')}>
-              <LayoutGrid />
-            </Button>
-            <Button size="icon" variant={view === 'list' ? 'secondary' : 'ghost'} className="size-8" onClick={() => switchView('list')}>
-              <List />
-            </Button>
-          </div>
+          <>
+            {view === 'grid' && <CardSizeToggle value={cardSize} onChange={setCardSize} />}
+            <div className="flex rounded-md border p-0.5">
+              <Button size="icon" variant={view === 'grid' ? 'secondary' : 'ghost'} className="size-8" onClick={() => switchView('grid')}>
+                <LayoutGrid />
+              </Button>
+              <Button size="icon" variant={view === 'list' ? 'secondary' : 'ghost'} className="size-8" onClick={() => switchView('list')}>
+                <List />
+              </Button>
+            </div>
+          </>
         }
       />
       <div className="space-y-6 p-8">
@@ -115,9 +120,9 @@ export function Documents() {
         )}
 
         {view === 'grid' ? (
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 2xl:grid-cols-4">
+          <div className={cardGridClass[cardSize]}>
             {items.map((d, i) => (
-              <DocumentCard key={d.id} doc={d} index={i} selected={i === sel} categoryLabel={label(d.category_id)} />
+              <DocumentCard key={d.id} doc={d} index={i} selected={i === sel} size={cardSize} categoryLabel={label(d.category_id)} />
             ))}
           </div>
         ) : (

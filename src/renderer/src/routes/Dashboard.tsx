@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { AlertCircle, FileText, FolderArchive, Loader2 } from 'lucide-react'
+import { CardSizeToggle, cardGridClass, useCardSize } from '@/components/CardSize'
 import { DocumentCard } from '@/components/DocumentCard'
 import { PageHeader } from '@/components/AppShell'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,7 @@ import { pickAndImport } from '@/lib/import'
 export function Dashboard() {
   const { data } = useData(() => api['dashboard:get']())
   const { label } = useCategories()
+  const [cardSize, setCardSize] = useCardSize()
 
   const stats = [
     { label: 'Dokumente', value: data?.counts.total, icon: FileText, to: '/documents' },
@@ -23,27 +25,30 @@ export function Dashboard() {
   return (
     <>
       <PageHeader title="Übersicht" />
-      <div className="space-y-8 p-8">
-        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="space-y-6 px-8 py-6">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
           {stats.map(({ label: l, value, icon: Icon, to }) => (
             <Link key={l} to={to}>
-              <Card className="gap-2 py-4 transition-shadow hover:shadow-md">
-                <CardHeader className="flex flex-row items-center justify-between px-4">
+              <Card className="gap-1 py-3 transition-shadow hover:shadow-md">
+                <CardHeader className="flex flex-row items-center justify-between px-3">
                   <CardTitle className="text-sm font-medium text-muted-foreground">{l}</CardTitle>
                   <Icon className="size-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent className="px-4 text-2xl font-semibold">{value ?? <Skeleton className="h-8 w-12" />}</CardContent>
+                <CardContent className="px-3 text-xl font-semibold">{value ?? <Skeleton className="h-7 w-12" />}</CardContent>
               </Card>
             </Link>
           ))}
         </div>
 
         <section>
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-3 flex items-center justify-between gap-2">
             <h2 className="text-lg font-semibold">Zuletzt hinzugefügt</h2>
-            <Button variant="link" asChild>
-              <Link to="/documents">Alle anzeigen</Link>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="link" asChild>
+                <Link to="/documents">Alle anzeigen</Link>
+              </Button>
+              <CardSizeToggle value={cardSize} onChange={setCardSize} />
+            </div>
           </div>
           {data && data.recent.length === 0 ? (
             <Card className="items-center py-12 text-center">
@@ -53,8 +58,8 @@ export function Dashboard() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 2xl:grid-cols-4">
-              {data?.recent.map((d) => <DocumentCard key={d.id} doc={d} categoryLabel={label(d.category_id)} />)}
+            <div className={cardGridClass[cardSize]}>
+              {data?.recent.map((d) => <DocumentCard key={d.id} doc={d} size={cardSize} categoryLabel={label(d.category_id)} />)}
             </div>
           )}
         </section>
