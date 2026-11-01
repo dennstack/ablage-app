@@ -5,6 +5,7 @@
   "description": "Persönliche Dokumentenablage mit Ollama-Klassifikation",
   "main": "./out/main/index.js",
   "author": "dennstack",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "dev": "electron-vite dev",
