@@ -50,8 +50,11 @@ export function useCategories() {
   const [categories, setCategories] = useState<Category[]>([])
   useEffect(() => {
     categorySubscribers.add(setCategories)
-    categoryCache ??= api['categories:list']()
-    void categoryCache.then(setCategories)
+    const pending = (categoryCache ??= api['categories:list']())
+    pending.then(setCategories, () => {
+      // Not cached, so the next mount retries once the file is fixed.
+      if (categoryCache === pending) categoryCache = null
+    })
     return () => {
       categorySubscribers.delete(setCategories)
     }

@@ -23,6 +23,16 @@ export interface TemplateValues {
   id: string
 }
 
+function cleanSegment(segment: string): string {
+  const collapsed = segment.replace(/([_\- ])[_\- ]+/g, '$1').replace(/^[_\- ]+|[_\- ]+$/g, '')
+  return sanitizeSegment(collapsed, 120)
+}
+
+/** The folder a top-level category label ends up as when it fills a template segment alone. */
+export function categoryFolder(label: string): string {
+  return cleanSegment(sanitizeSegment(label))
+}
+
 /**
  * Renders a path template like `{category}/{year}/{date}_{sender}_{title}` to a
  * relative path without extension. Empty placeholders collapse with their separators.
@@ -40,13 +50,7 @@ export function renderTemplate(template: string, v: TemplateValues): string {
   }
   const segments = template
     .split(/[/\\]/)
-    .map((seg) =>
-      seg
-        .replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? '')
-        .replace(/([_\- ])[_\- ]+/g, '$1')
-        .replace(/^[_\- ]+|[_\- ]+$/g, '')
-    )
-    .map((seg) => sanitizeSegment(seg, 120))
+    .map((seg) => cleanSegment(seg.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? '')))
     .filter(Boolean)
   if (segments.length === 0) return values.id
   return segments.join('/')

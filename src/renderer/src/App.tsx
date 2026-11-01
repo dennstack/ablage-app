@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { HashRouter, Route, Routes } from 'react-router'
+import { createHashRouter, Outlet, RouterProvider } from 'react-router'
 import { AppShell } from '@/components/AppShell'
 import { Toaster } from '@/components/ui/sonner'
 import type { Settings as SettingsT } from '@shared/types'
@@ -12,6 +12,26 @@ import { References } from '@/routes/References'
 import { Settings } from '@/routes/Settings'
 import { Setup } from '@/routes/Setup'
 import { Trash } from '@/routes/Trash'
+
+// useBlocker in the category editor needs a data router.
+const router = createHashRouter([
+  {
+    element: (
+      <AppShell>
+        <Outlet />
+      </AppShell>
+    ),
+    children: [
+      { path: '/', element: <Dashboard /> },
+      { path: '/documents', element: <Documents /> },
+      { path: '/documents/:id', element: <DocumentDetail /> },
+      { path: '/references', element: <References /> },
+      { path: '/trash', element: <Trash /> },
+      { path: '/settings', element: <Settings /> },
+      { path: '/settings/categories', element: <Categories /> }
+    ]
+  }
+])
 
 export function App() {
   const [initial, setInitial] = useState<SettingsT | null>(null)
@@ -27,21 +47,7 @@ export function App() {
   return (
     <>
       {configured === false && initial && <Setup initial={initial} onDone={() => setConfigured(true)} />}
-      {configured && (
-        <HashRouter>
-          <AppShell>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/documents" element={<Documents />} />
-              <Route path="/documents/:id" element={<DocumentDetail />} />
-              <Route path="/references" element={<References />} />
-              <Route path="/trash" element={<Trash />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/settings/categories" element={<Categories />} />
-            </Routes>
-          </AppShell>
-        </HashRouter>
-      )}
+      {configured && <RouterProvider router={router} />}
       <Toaster richColors position="bottom-right" />
     </>
   )

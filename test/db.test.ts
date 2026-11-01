@@ -15,7 +15,7 @@ describe('documents', () => {
   it('migrates idempotently', () => {
     const { db } = setup()
     migrate(db)
-    expect((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(1)
+    expect((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version).toBe(2)
   })
 
   it('finds documents by prefix and umlaut-insensitive full text', () => {

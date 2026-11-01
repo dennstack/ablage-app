@@ -1,7 +1,8 @@
 import { DatabaseSync } from 'node:sqlite'
 import m001 from './migrations/001_init.sql?raw'
+import m002 from './migrations/002_pending_sync.sql?raw'
 
-const migrations = [m001]
+const migrations = [m001, m002]
 
 export type Db = DatabaseSync
 

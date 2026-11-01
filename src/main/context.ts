@@ -15,6 +15,8 @@ import { InboxWatcher } from './pipeline/inbox'
 import { Pipeline } from './pipeline/pipeline'
 import { SettingsStore } from './settings'
 
+const SHUTDOWN_TIMEOUT_MS = 10_000
+
 export interface ContextOptions {
   userData: string
   bundledCategories: string
@@ -55,7 +57,8 @@ export class AppContext {
       settings: () => this.settings.get(),
       classifier: (): Classifier => (this.settings.get().classifierMode === 'ollama' ? fallback : rules),
       thumbsDir: join(opts.userData, 'thumbs'),
-      notify: opts.notify
+      notify: opts.notify,
+      saveReferences: () => this.saveReferences()
     })
 
     this.inbox = new InboxWatcher(
@@ -76,7 +79,10 @@ export class AppContext {
         this.lib = null
       }
     }
-    if (this.lib) this.pipeline.resumeUnfinished()
+    if (this.lib) {
+      this.pipeline.resumeSync()
+      this.pipeline.resumeUnfinished()
+    }
     this.applyWatcher()
   }
 
@@ -93,10 +99,14 @@ export class AppContext {
   async setLibrary(path: string): Promise<void> {
     const next = new Library(path)
     await next.ensure()
-    await this.pipeline.idle()
-    this.lib = next
-    this.settings.update({ libraryPath: path })
-    await rebuildFromLibrary(this.db, this.docs, next)
+    await this.pipeline.exclusive(async () => {
+      // The journal refers to the old library: last chance before it is dropped.
+      if (this.lib) await this.pipeline.syncPending()
+      this.docs.clearPending()
+      this.lib = next
+      this.settings.update({ libraryPath: path })
+      await rebuildFromLibrary(this.db, this.docs, next)
+    })
     this.applyWatcher()
   }
 
@@ -113,6 +123,13 @@ export class AppContext {
   private applyWatcher(): void {
     if (this.lib && this.settings.get().watchInbox) this.inbox.start()
     else this.inbox.stop()
+  }
+
+  /** Lets a running file move finish; a hung NAS must not keep the app alive. */
+  async shutdown(): Promise<void> {
+    this.inbox.stop()
+    await Promise.race([this.pipeline.shutdown(), new Promise((resolve) => setTimeout(resolve, SHUTDOWN_TIMEOUT_MS))])
+    this.dispose()
   }
 
   dispose(): void {

@@ -45,9 +45,19 @@ describe('planChange', () => {
     expect(planChange(current, next, {}, none).relocate).toEqual(['rechnung', 'rechnung_telko'])
   })
 
-  it('does not relocate for subcategory or case-only renames', () => {
-    const next = [cat('rechnung', 'RECHNUNG', [cat('rechnung_telko', 'Telefon')]), ...current.slice(1)]
+  it('relocates for case-only renames', () => {
+    const next = [cat('rechnung', 'RECHNUNG', [cat('rechnung_telko', 'Telko')]), ...current.slice(1)]
+    expect(planChange(current, next, {}, none).relocate).toEqual(['rechnung', 'rechnung_telko'])
+  })
+
+  it('does not relocate for subcategory renames', () => {
+    const next = [cat('rechnung', 'Rechnung', [cat('rechnung_telko', 'Telefon')]), ...current.slice(1)]
     expect(planChange(current, next, {}, none).relocate).toEqual([])
+  })
+
+  it('judges folder names the way the path template renders them', () => {
+    expect(() => planChange(current, [...current, cat('neu', '---')], {}, none)).toThrow('Ordnername')
+    expect(() => planChange(current, [...current, cat('a', 'Foo Bar'), cat('b', 'Foo - Bar')], {}, none)).toThrow('mehrfach')
   })
 
   it('requires the fallback category at top level', () => {
@@ -89,6 +99,61 @@ describe('planChange', () => {
 })
 
 describe('Categories.save', () => {
+  const yaml = [
+    '# Kopf',
+    'categories:',
+    '  # Finanzen',
+    '  - id: a',
+    '    label: A # inline',
+    '    keywords: [x, y]',
+    '',
+    '  # Rest',
+    '  - id: b',
+    '    label: B',
+    '    keywords: []',
+    '    subcategories:',
+    '      # Kind',
+    '      - id: b_c',
+    '        label: C',
+    '        keywords: [z]',
+    ''
+  ].join('\n')
+
+  const open = (): { file: string; categories: Categories } => {
+    const file = join(mkdtempSync(join(tmpdir(), 'ablage-cat-')), 'categories.yaml')
+    writeFileSync(file, yaml)
+    return { file, categories: new Categories(file, file) }
+  }
+
+  it('keeps comments, spacing and flow style of untouched items', () => {
+    const { file, categories } = open()
+    const list = structuredClone(categories.all())
+    list[0].label = 'Neu'
+    list[1].subcategories![0].keywords = ['z', 'q']
+    categories.save(list)
+    expect(readFileSync(file, 'utf8')).toBe(
+      yaml.replace('label: A # inline', 'label: Neu # inline').replace('keywords: [z]', 'keywords: [z, q]')
+    )
+  })
+
+  it('does not touch the file when nothing changed', () => {
+    const { file, categories } = open()
+    writeFileSync(file, `${yaml}\n# nachgetragen\n`)
+    categories.save(structuredClone(categories.all()))
+    expect(readFileSync(file, 'utf8')).toContain('# nachgetragen')
+  })
+
+  it('removes items and adds new ones', () => {
+    const { file, categories } = open()
+    categories.save([{ id: 'b', label: 'B', keywords: [] }, { id: 'n', label: 'N', keywords: ['k'] }])
+    const text = readFileSync(file, 'utf8')
+    expect(text).not.toContain('id: a')
+    expect(text).not.toContain('subcategories')
+    expect(text).toContain('keywords: [k]')
+    categories.reload()
+    expect(categories.all().map((c) => c.id)).toEqual(['b', 'n'])
+  })
+
   it('writes readable yaml, keeps the header comment and round-trips', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ablage-cat-'))
     const file = join(dir, 'categories.yaml')
@@ -100,7 +165,7 @@ describe('Categories.save', () => {
 
     const text = readFileSync(file, 'utf8')
     expect(text).toContain('# Meine Kategorien')
-    expect(text).toContain('[ a, b ]')
+    expect(text).toContain('[a, b]')
     expect(text).not.toContain('subcategories')
     categories.reload()
     expect(categories.all()).toEqual([{ id: 'neu', label: 'Neu', keywords: ['a', 'b'] }])

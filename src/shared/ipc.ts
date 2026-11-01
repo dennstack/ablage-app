@@ -2,7 +2,7 @@ import type {
   Category,
   CategorySaveInput,
   CategorySaveResult,
-  CategoryUsage,
+  CategoryState,
   DashboardData,
   Document,
   DocumentPage,
@@ -32,7 +32,8 @@ export interface AblageApi {
 
   'categories:list'(): Category[]
   'categories:openFile'(): void
-  'categories:usage'(): Record<string, CategoryUsage>
+  'categories:load'(): CategoryState
+  'categories:retrySync'(): CategorySaveResult
   'categories:save'(input: CategorySaveInput): CategorySaveResult
 
   'dashboard:get'(): DashboardData
@@ -77,7 +78,8 @@ export const channels: Channel[] = [
   'settings:openLibrary',
   'categories:list',
   'categories:openFile',
-  'categories:usage',
+  'categories:load',
+  'categories:retrySync',
   'categories:save',
   'dashboard:get',
   'documents:list',

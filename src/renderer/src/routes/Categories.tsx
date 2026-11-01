@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useBlocker, useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react'
 import { categoryId, FALLBACK_CATEGORY } from '@shared/categories'
@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api, errorMessage } from '@/lib/api'
-import { invalidateCategories } from '@/lib/hooks'
+import { invalidateCategories, useData } from '@/lib/hooks'
 
 /** `id` stays null until the first save, so it derives from the final label. */
 interface Row {
@@ -80,7 +80,7 @@ export function Categories() {
   const navigate = useNavigate()
   const [original, setOriginal] = useState<Category[] | null>(null)
   const [rows, setRows] = useState<Row[]>([])
-  const [usage, setUsage] = useState<Record<string, CategoryUsage>>({})
+  const [version, setVersion] = useState('')
   const [reassign, setReassign] = useState<Record<string, string>>({})
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   const [confirmMoves, setConfirmMoves] = useState(0)
@@ -89,10 +89,10 @@ export function Categories() {
 
   const load = useCallback(async (): Promise<void> => {
     try {
-      const [categories, nextUsage] = await Promise.all([api['categories:list'](), api['categories:usage']()])
-      setOriginal(categories)
-      setRows(toRows(categories))
-      setUsage(nextUsage)
+      const state = await api['categories:load']()
+      setOriginal(state.categories)
+      setRows(toRows(state.categories))
+      setVersion(state.version)
       setReassign({})
       setLoadError(null)
     } catch (err) {
@@ -103,6 +103,16 @@ export function Categories() {
   useEffect(() => {
     void load()
   }, [load])
+
+  // Refreshes on document changes without touching the draft.
+  const { data: live, reload: reloadLive } = useData(() => api['categories:load']())
+  const usage = live?.usage ?? {}
+
+  const dirty = useMemo(
+    () => original !== null && (Object.keys(reassign).length > 0 || JSON.stringify(rows) !== JSON.stringify(toRows(original))),
+    [original, rows, reassign]
+  )
+  const blocker = useBlocker(dirty && !saving)
 
   /** Includes documents already redirected to this id in the draft. */
   const usageOf = (id: string): number =>
@@ -131,18 +141,20 @@ export function Categories() {
     const ids = rowIds(row)
     setReassign((map) => {
       const next = Object.fromEntries(Object.entries(map).map(([from, to]) => [from, ids.includes(to) ? target : to]))
-      for (const id of ids) if (usageTotal(usage[id]) > 0) next[id] = target
+      // Also for unused ids: a document can still arrive before the save.
+      for (const id of ids) next[id] = target
       return next
     })
   }
 
   const requestDelete = (row: Row, parent: Row | null): void => {
     const count = rowIds(row).reduce((sum, id) => sum + usageOf(id), 0)
+    const target = parent?.id ?? FALLBACK_CATEGORY
     if (count === 0) {
-      removeRow(row)
+      removeRow(row, target)
       return
     }
-    setPendingDelete({ row, parent, count, target: parent?.id ?? FALLBACK_CATEGORY })
+    setPendingDelete({ row, parent, count, target })
   }
 
   /** Only saved rows can receive documents; new rows have no id yet. */
@@ -213,9 +225,22 @@ export function Categories() {
     setConfirmMoves(0)
     setSaving(true)
     try {
-      report(await api['categories:save']({ categories: buildCategories(), reassign }))
+      report(await api['categories:save']({ categories: buildCategories(), reassign, version }))
       await load()
+      await reloadLive()
       await invalidateCategories()
+    } catch (err) {
+      toast.error(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const retrySync = async (): Promise<void> => {
+    setSaving(true)
+    try {
+      report(await api['categories:retrySync']())
+      await reloadLive()
     } catch (err) {
       toast.error(errorMessage(err))
     } finally {
@@ -255,12 +280,24 @@ export function Categories() {
     )
   }
 
-  if (!original) return header
+  if (!original || !live) return header
 
   return (
     <>
       {header}
       <div className="mx-auto max-w-3xl space-y-4 p-8">
+        {live.pendingSync > 0 && (
+          <Card>
+            <CardContent className="flex items-center justify-between gap-4">
+              <p className="text-sm">
+                {plural(live.pendingSync, 'Eintrag ist', 'Einträge sind')} noch nicht in der Bibliothek aktualisiert. Der Versuch wird auch beim nächsten Start wiederholt.
+              </p>
+              <Button variant="outline" disabled={saving} onClick={() => void retrySync()}>
+                Erneut versuchen
+              </Button>
+            </CardContent>
+          </Card>
+        )}
         {rows.map((row) => (
           <Card key={row.key}>
             <CardContent className="space-y-4">
@@ -305,10 +342,7 @@ export function Categories() {
             <Button
               variant="ghost"
               disabled={saving}
-              onClick={() => {
-                setRows(toRows(original))
-                setReassign({})
-              }}
+              onClick={() => void load()}
             >
               Verwerfen
             </Button>
@@ -353,6 +387,19 @@ export function Categories() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={blocker.state === 'blocked'}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Änderungen verwerfen?</AlertDialogTitle>
+            <AlertDialogDescription>Die Kategorien enthalten ungespeicherte Änderungen.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => blocker.reset?.()}>Weiter bearbeiten</AlertDialogCancel>
+            <AlertDialogAction onClick={() => blocker.proceed?.()}>Verwerfen</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmMoves > 0} onOpenChange={(open) => !open && setConfirmMoves(0)}>
         <AlertDialogContent>

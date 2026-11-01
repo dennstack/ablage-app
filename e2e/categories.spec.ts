@@ -1,4 +1,4 @@
-import { chmodSync, readFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test } from './fixtures'
 
@@ -54,7 +54,7 @@ test('new categories get ids from their labels', async ({ app }) => {
 
   await expect(app.page.locator('#aerzte-co-label')).toHaveValue('Ärzte & Co')
   expect(app.yaml()).toContain('id: aerzte-co_labor')
-  expect(app.yaml()).toContain('keywords: [ arzt, praxis ]')
+  expect(app.yaml()).toContain('keywords: [arzt, praxis]')
 })
 
 test('the fallback category cannot be deleted and appears once in the picker', async ({ app }) => {
@@ -116,4 +116,83 @@ test('other pages show a new label without a restart', async ({ app }) => {
   })
 
   await expect(app.page.getByText('Belege', { exact: true }).first()).toBeVisible()
+})
+
+test('a blank name shows a readable error', async ({ app }) => {
+  await app.openEditor()
+
+  await app.page.getByRole('button', { name: 'Unterkategorie' }).first().click()
+  await app.page.getByRole('button', { name: 'Speichern' }).click()
+
+  const toast = app.page.locator('[data-sonner-toast]').first()
+  await expect(toast).toContainText('keinen Namen')
+  await expect(toast).not.toContainText('too_small')
+})
+
+test('a save based on an outdated file is rejected', async ({ app }) => {
+  await app.openEditor()
+  appendFileSync(join(app.userData, 'categories.yaml'), '# extern\n')
+
+  await app.page.locator('#vertrag-label').fill('Abkommen')
+  await app.page.getByRole('button', { name: 'Speichern' }).click()
+
+  await expect(app.page.locator('[data-sonner-toast]').first()).toContainText('inzwischen geändert')
+  expect(app.yaml()).toContain('label: Vertrag')
+})
+
+test('leaving with unsaved changes asks first', async ({ app }) => {
+  await app.openEditor()
+  await app.page.locator('#vertrag-label').fill('Abkommen')
+
+  await app.page.getByRole('button', { name: 'Einstellungen' }).first().click()
+  const dialog = app.page.getByRole('alertdialog')
+  await dialog.getByRole('button', { name: 'Weiter bearbeiten' }).click()
+  await expect(app.page.locator('#vertrag-label')).toHaveValue('Abkommen')
+
+  await app.page.getByRole('button', { name: 'Einstellungen' }).first().click()
+  await dialog.getByRole('button', { name: 'Verwerfen' }).click()
+  await expect(app.page.getByRole('button', { name: 'Kategorien bearbeiten' })).toBeVisible()
+})
+
+test('a document arriving after an unused category was deleted does not block the save', async ({ app }) => {
+  await app.openEditor()
+  await app.page.getByRole('button', { name: 'Miete löschen' }).click()
+  const doc = await app.addDocument('spaet', 'vertrag_miete')
+
+  await app.page.getByRole('button', { name: 'Speichern' }).click()
+  // The confirmation only appears once the refreshed usage has reached the editor.
+  await app.page.getByRole('alertdialog').getByRole('button', { name: 'Speichern' }).click({ timeout: 1000 }).catch(() => undefined)
+
+  await expect.poll(() => app.yaml()).not.toContain('id: vertrag_miete')
+  await expect.poll(() => app.sidecar(doc.id).category_id).toBe('vertrag')
+})
+
+test('a case-only rename moves files and stays stable', async ({ app }) => {
+  const doc = await app.addDocument('datei', 'rechnung')
+  await app.openEditor()
+  await app.page.locator('#rechnung-label').fill('RECHNUNG')
+  await app.save()
+  await expect(app.page.locator('[data-sonner-toast]').first()).toBeVisible()
+
+  const updated = await app.invoke('documents:update', doc.id, { title: doc.title })
+  expect(updated.relative_path).toBe('Dokumente/RECHNUNG/ohne-datum/datei.txt')
+})
+
+test('a failed move can be retried from the editor', async ({ app }) => {
+  test.skip(process.platform === 'win32' || process.getuid?.() === 0, 'needs POSIX permissions')
+  const doc = await app.addDocument('datei', 'rechnung')
+  await app.openEditor()
+  const documents = join(app.library, 'Dokumente')
+  chmodSync(documents, 0o555)
+  try {
+    await app.page.locator('#rechnung-label').fill('Belege')
+    await app.save()
+    await expect(app.page.getByRole('button', { name: 'Erneut versuchen' })).toBeVisible()
+  } finally {
+    chmodSync(documents, 0o755)
+  }
+
+  await app.page.getByRole('button', { name: 'Erneut versuchen' }).click()
+  await expect(app.page.getByRole('button', { name: 'Erneut versuchen' })).toBeHidden()
+  expect((await app.invoke('documents:get', doc.id)).relative_path).toBe('Dokumente/Belege/ohne-datum/datei.txt')
 })

@@ -50,6 +50,29 @@ describe('Library', () => {
   })
 })
 
+describe('case variants', () => {
+  it('moves a case-only rename and is stable afterwards', async () => {
+    const src = join(root, 'case.pdf')
+    await writeFile(src, 'a')
+    const rel = await lib.place(src, 'Dokumente/Rechnung/x', '.pdf', true)
+    const moved = await lib.relocate(rel, 'Dokumente/RECHNUNG/x')
+    expect(moved).toBe('Dokumente/RECHNUNG/x.pdf')
+    expect(await lib.relocate(moved, 'Dokumente/RECHNUNG/x')).toBe(moved)
+    expect(await lib.fileExists(moved)).toBe(true)
+  })
+
+  it('does not overwrite a different file at a case variant', async () => {
+    const a = join(root, 'a.pdf')
+    const b = join(root, 'b.pdf')
+    await writeFile(a, 'a')
+    await writeFile(b, 'b')
+    const first = await lib.place(a, 'Dokumente/Foo/x', '.pdf', true)
+    const second = await lib.place(b, 'Dokumente/foo/x', '.pdf', true)
+    expect(await lib.relocate(second, 'Dokumente/Foo/x')).toBe('Dokumente/Foo/x_2.pdf')
+    expect(await lib.fileExists(first)).toBe(true)
+  })
+})
+
 describe('rebuild', () => {
   it('restores documents and references from the library', async () => {
     const db = new DatabaseSync(':memory:')

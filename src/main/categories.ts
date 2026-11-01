@@ -1,8 +1,9 @@
+import { createHash } from 'node:crypto'
 import { copyFileSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { isScalar, isSeq, parse, parseDocument, visit } from 'yaml'
+import { type Document as YamlDocument, isMap, isScalar, isSeq, parse, parseDocument, type YAMLMap, YAMLSeq } from 'yaml'
 import { FALLBACK_CATEGORY } from '@shared/categories'
 import type { Category } from '@shared/types'
-import { sanitizeSegment } from './lib/naming'
+import { categoryFolder } from './lib/naming'
 
 export interface CategoryPlan {
   removed: string[]
@@ -24,7 +25,43 @@ function parentMap(list: Category[]): Map<string, string | null> {
 }
 
 function folderKey(label: string): string {
-  return sanitizeSegment(label).toLowerCase()
+  return categoryFolder(label).toLowerCase()
+}
+
+function normalized(list: Category[]): unknown {
+  return list.map((c) => ({ id: c.id, label: c.label, keywords: c.keywords ?? [], subcategories: normalized(c.subcategories ?? []) }))
+}
+
+function setScalar(map: YAMLMap, key: string, value: string): void {
+  const node = map.get(key, true)
+  if (isScalar(node)) node.value = value
+  else map.set(key, value)
+}
+
+/** Reuses the item's node so its comments and spacing survive. */
+function toNode(doc: YamlDocument, existing: unknown, c: Category): YAMLMap {
+  const map = isMap(existing) ? (existing as YAMLMap) : (doc.createNode({}) as YAMLMap)
+  setScalar(map, 'id', c.id)
+  setScalar(map, 'label', c.label)
+  const keywords = c.keywords ?? []
+  const oldKeywords = map.get('keywords', true)
+  if (!isSeq(oldKeywords) || JSON.stringify(oldKeywords.toJSON()) !== JSON.stringify(keywords)) {
+    const node = doc.createNode(keywords) as YAMLSeq
+    node.flow = true
+    if (isSeq(oldKeywords)) node.comment = oldKeywords.comment
+    map.set('keywords', node)
+  }
+  if (c.subcategories?.length) setItems(doc, map, 'subcategories', c.subcategories)
+  else map.delete('subcategories')
+  return map
+}
+
+function setItems(doc: YamlDocument, parent: YamlDocument | YAMLMap, key: string, list: Category[]): void {
+  const old = (parent as YAMLMap).get(key, true) as unknown
+  const seq = isSeq(old) ? (old as YAMLSeq) : new YAMLSeq(doc.schema)
+  const byId = new Map(seq.items.filter(isMap).map((item) => [String((item as YAMLMap).get('id')), item]))
+  seq.items = list.map((c) => toNode(doc, byId.get(c.id), c))
+  parent.set(key, seq)
 }
 
 /** Validates an edit against the current list. Throws a user-facing message. */
@@ -71,8 +108,7 @@ export function planChange(
   const relocate = next
     .filter((c) => {
       const old = current.find((o) => o.id === c.id)
-      // Case-only renames stay put: the folder resolves to the same path on Windows.
-      return old !== undefined && folderKey(old.label) !== folderKey(c.label)
+      return old !== undefined && categoryFolder(old.label) !== categoryFolder(c.label)
     })
     .flatMap((c) => [c.id, ...(c.subcategories ?? []).map((s) => s.id)])
 
@@ -96,22 +132,22 @@ export class Categories {
   }
 
   save(list: Category[]): void {
+    if (JSON.stringify(normalized(list)) === JSON.stringify(normalized(this.list))) return
     const doc = parseDocument(readFileSync(this.file, 'utf8'))
-    const plain = list.map(({ subcategories, ...c }) => (subcategories?.length ? { ...c, subcategories } : c))
-    doc.set('categories', doc.createNode(plain))
-    visit(doc, {
-      Pair(_, pair) {
-        if (isScalar(pair.key) && pair.key.value === 'keywords' && isSeq(pair.value)) pair.value.flow = true
-      }
-    })
+    setItems(doc, doc as unknown as YamlDocument, 'categories', list)
     const tmp = `${this.file}.tmp`
-    writeFileSync(tmp, doc.toString({ lineWidth: 0 }))
+    writeFileSync(tmp, doc.toString({ lineWidth: 0, flowCollectionPadding: false }))
     renameSync(tmp, this.file)
     this.list = list
   }
 
   all(): Category[] {
     return this.list
+  }
+
+  /** Identifies the file's content, to detect edits made after the editor loaded it. */
+  version(): string {
+    return createHash('sha256').update(readFileSync(this.file)).digest('hex')
   }
 
   label(id: string): string {

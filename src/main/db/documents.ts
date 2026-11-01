@@ -131,6 +131,24 @@ export class DocumentRepo {
       .all(...ids) as unknown as { id: string; category_id: string; deleted_at: string | null }[]
   }
 
+  reassignCategory(from: string, to: string): void {
+    this.db.prepare('UPDATE documents SET category_id = ?, updated_at = ? WHERE category_id = ?').run(to, now(), from)
+  }
+
+  markPending(keys: string[]): void {
+    const stmt = this.db.prepare('INSERT OR IGNORE INTO pending_sync (key) VALUES (?)')
+    for (const key of keys) stmt.run(key)
+  }
+
+  pendingKeys(): string[] {
+    return (this.db.prepare('SELECT key FROM pending_sync').all() as { key: string }[]).map((r) => r.key)
+  }
+
+  clearPending(key?: string): void {
+    if (key === undefined) this.db.exec('DELETE FROM pending_sync')
+    else this.db.prepare('DELETE FROM pending_sync WHERE key = ?').run(key)
+  }
+
   counts(): { total: number; pending: number; errors: number } {
     return this.db
       .prepare(

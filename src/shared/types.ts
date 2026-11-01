@@ -61,6 +61,16 @@ export interface CategorySaveInput {
   categories: Category[]
   /** Deleted category id → id that takes over its documents and references. */
   reassign: Record<string, string>
+  /** `CategoryState.version` the draft is based on. */
+  version: string
+}
+
+export interface CategoryState {
+  categories: Category[]
+  usage: Record<string, CategoryUsage>
+  version: string
+  /** Library writes still owed by earlier saves. */
+  pendingSync: number
 }
 
 export interface CategorySaveResult {

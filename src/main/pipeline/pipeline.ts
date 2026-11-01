@@ -10,7 +10,10 @@ import { DIRS, type Library } from '../library/library'
 import { renderTemplate, stripExtension } from '../lib/naming'
 import { extractText, mimeFor } from '../ocr/extract'
 import type { WorkerBridge } from '../ocr/workerBridge'
-import { SerialQueue } from './queue'
+import { Gate, SerialQueue } from './queue'
+
+/** Journal key for `.ablage/references.json`; document keys are UUIDs. */
+export const REFERENCES_SYNC_KEY = 'references'
 
 export interface PipelineDeps {
   docs: DocumentRepo
@@ -21,10 +24,13 @@ export interface PipelineDeps {
   classifier: () => Classifier
   thumbsDir: string
   notify: (id: string) => void
+  saveReferences: () => Promise<void>
 }
 
 export class Pipeline {
   private queue = new SerialQueue()
+  private gate = new Gate()
+  private stopping = false
 
   constructor(private d: PipelineDeps) {}
 
@@ -45,7 +51,11 @@ export class Pipeline {
     return `${DIRS.documents}/${rendered}`
   }
 
-  async importFile(src: string, move: boolean): Promise<ImportResult> {
+  importFile(src: string, move: boolean): Promise<ImportResult> {
+    return this.gate.shared(() => this.doImportFile(src, move))
+  }
+
+  private async doImportFile(src: string, move: boolean): Promise<ImportResult> {
     const file = basename(src)
     const library = this.d.library()
     try {
@@ -93,7 +103,7 @@ export class Pipeline {
   }
 
   enqueue(id: string, mode: 'full' | 'classify'): void {
-    this.queue.push(`${mode}:${id}`, () => this.process(id, mode))
+    this.queue.push(`${mode}:${id}`, () => this.gate.shared(() => this.process(id, mode)))
   }
 
   resumeUnfinished(): void {
@@ -107,6 +117,7 @@ export class Pipeline {
   }
 
   private async process(id: string, mode: 'full' | 'classify'): Promise<void> {
+    if (this.stopping) return
     let doc = this.d.docs.get(id)
     if (!doc || doc.deleted_at) return
     const library = this.d.library()
@@ -166,72 +177,143 @@ export class Pipeline {
       await library.writeSidecar(doc)
       this.d.notify(id)
     } catch (err) {
+      // Shutdown tears down the worker; the document resumes on next launch.
+      if (this.stopping) return
       console.error(`processing ${id} failed:`, err)
       const failed = this.setStatus(id, 'error', (err as Error).message)
       await library.writeSidecar(failed).catch(() => undefined)
     }
   }
 
-  async updateMetadata(id: string, patch: DocumentPatch): Promise<Document> {
-    const library = this.d.library()
-    let doc = this.d.docs.update(id, patch)
-    if (!doc.deleted_at) {
-      const rel = await library.relocate(doc.relative_path, this.targetBase(doc))
-      if (rel !== doc.relative_path) doc = this.d.docs.update(id, { relative_path: rel })
-    }
-    await library.writeSidecar(doc)
-    this.d.notify(id)
-    return doc
+  /** Moves first, so a failed move leaves the document, its DB row and its sidecar untouched. */
+  updateMetadata(id: string, patch: DocumentPatch): Promise<Document> {
+    return this.gate.shared(async () => {
+      const library = this.d.library()
+      const before = this.d.docs.get(id)
+      if (!before) throw new Error(`document ${id} not found`)
+      const rel = before.deleted_at ? before.relative_path : await library.relocate(before.relative_path, this.targetBase({ ...before, ...patch }))
+      const doc = this.d.docs.update(id, rel === before.relative_path ? patch : { ...patch, relative_path: rel })
+      try {
+        await library.writeSidecar(doc)
+        this.d.docs.clearPending(id)
+      } catch (err) {
+        this.d.docs.markPending([id])
+        throw err
+      }
+      this.d.notify(id)
+      return doc
+    })
   }
 
-  /** A failed document keeps its old path and moves on its next edit. */
-  async applyCategoryPatches(items: { id: string; patch: DocumentPatch }[]): Promise<CategorySaveResult> {
+  /** Blocks all file and document changes while `fn` runs. */
+  exclusive<T>(fn: () => Promise<T>): Promise<T> {
+    return this.gate.exclusive(fn)
+  }
+
+  /** Works off the journal; entries that fail stay for the next attempt. Caller holds `exclusive`. */
+  async syncPending(): Promise<CategorySaveResult> {
     const result: CategorySaveResult = { moved: 0, failed: [] }
-    for (const { id, patch } of items) {
-      const before = this.d.docs.get(id)
-      if (!before) continue
-      try {
-        const doc = await this.updateMetadata(id, patch)
-        if (doc.relative_path !== before.relative_path) result.moved++
-      } catch (err) {
-        result.failed.push({ id, title: before.title, message: (err as Error).message })
+    for (const key of this.d.docs.pendingKeys()) {
+      if (this.stopping) break
+      if (key === REFERENCES_SYNC_KEY) {
+        try {
+          await this.d.saveReferences()
+          this.d.docs.clearPending(key)
+        } catch (err) {
+          result.failed.push({ id: key, title: 'Referenzliste', message: (err as Error).message })
+        }
+        continue
       }
+      const before = this.d.docs.get(key)
+      if (!before) {
+        this.d.docs.clearPending(key)
+        continue
+      }
+      try {
+        if (await this.syncDocument(before)) result.moved++
+      } catch (err) {
+        result.failed.push({ id: key, title: before.title, message: (err as Error).message })
+      }
+      this.d.notify(key)
     }
     return result
   }
 
-  async trash(id: string): Promise<void> {
-    const doc = this.d.docs.get(id)
-    if (!doc || doc.deleted_at) return
+  /** The sidecar is written even after a failed move: a rebuild must not restore a deleted category. */
+  private async syncDocument(before: Document): Promise<boolean> {
     const library = this.d.library()
-    const rel = await library.moveToTrash(doc.relative_path, id)
-    const updated = this.d.docs.update(id, { relative_path: rel, deleted_at: now() })
-    await library.writeSidecar(updated)
-    this.d.notify(id)
+    let doc = before
+    let moveError: Error | null = null
+    if (!doc.deleted_at) {
+      try {
+        const rel = await library.relocate(await this.locate(doc), this.targetBase(doc))
+        if (rel !== doc.relative_path) doc = this.d.docs.update(doc.id, { relative_path: rel })
+      } catch (err) {
+        moveError = err as Error
+      }
+    }
+    await library.writeSidecar(doc)
+    if (moveError) throw moveError
+    this.d.docs.clearPending(doc.id)
+    return doc.relative_path !== before.relative_path
   }
 
-  async restore(id: string): Promise<void> {
-    const doc = this.d.docs.get(id)
-    if (!doc || !doc.deleted_at) return
+  /** A crash can land between moving a file and recording its new path. */
+  private async locate(doc: Document): Promise<string> {
     const library = this.d.library()
-    const rel = await library.relocate(doc.relative_path, this.targetBase(doc))
-    const updated = this.d.docs.update(id, { relative_path: rel, deleted_at: null })
-    await library.writeSidecar(updated)
-    this.d.notify(id)
+    if (await library.fileExists(doc.relative_path)) return doc.relative_path
+    const candidate = `${this.targetBase(doc)}${extname(doc.relative_path)}`
+    if (!(await library.fileExists(candidate))) return doc.relative_path
+    const hash = createHash('sha256').update(await readFile(library.abs(candidate))).digest('hex')
+    return hash === doc.file_hash ? candidate : doc.relative_path
   }
 
-  async purge(id: string): Promise<void> {
-    const doc = this.d.docs.get(id)
-    if (!doc) return
-    const library = this.d.library()
-    await library.deleteFile(doc.relative_path)
-    await library.deleteSidecar(id)
-    await rm(this.thumbPath(id), { force: true })
-    this.d.docs.remove(id)
-    this.d.notify(id)
+  /** Retries what a previous session left in the journal. */
+  resumeSync(): void {
+    if (this.d.docs.pendingKeys().length === 0) return
+    void this.exclusive(() => this.syncPending()).catch((err) => console.error('resuming sync failed:', err))
   }
 
-  idle(): Promise<void> {
-    return this.queue.idle()
+  trash(id: string): Promise<void> {
+    return this.gate.shared(async () => {
+      const doc = this.d.docs.get(id)
+      if (!doc || doc.deleted_at) return
+      const library = this.d.library()
+      const rel = await library.moveToTrash(doc.relative_path, id)
+      const updated = this.d.docs.update(id, { relative_path: rel, deleted_at: now() })
+      await library.writeSidecar(updated)
+      this.d.notify(id)
+    })
+  }
+
+  restore(id: string): Promise<void> {
+    return this.gate.shared(async () => {
+      const doc = this.d.docs.get(id)
+      if (!doc || !doc.deleted_at) return
+      const library = this.d.library()
+      const rel = await library.relocate(doc.relative_path, this.targetBase(doc))
+      const updated = this.d.docs.update(id, { relative_path: rel, deleted_at: null })
+      await library.writeSidecar(updated)
+      this.d.notify(id)
+    })
+  }
+
+  purge(id: string): Promise<void> {
+    return this.gate.shared(async () => {
+      const doc = this.d.docs.get(id)
+      if (!doc) return
+      const library = this.d.library()
+      await library.deleteFile(doc.relative_path)
+      await library.deleteSidecar(id)
+      await rm(this.thumbPath(id), { force: true })
+      this.d.docs.remove(id)
+      this.d.notify(id)
+    })
+  }
+
+  /** Stops after the current document; the journal resumes the rest on next launch. */
+  shutdown(): Promise<void> {
+    this.stopping = true
+    return this.gate.exclusive(async () => undefined)
   }
 }

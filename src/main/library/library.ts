@@ -44,6 +44,8 @@ export class Library {
       const candidate = `${base}${i === 1 ? '' : `_${i}`}${ext}`
       if (candidate === ignore) return candidate
       if (!(await exists(this.abs(candidate)))) return candidate
+      // On NTFS/SMB a case variant of the file's own path is the file itself, not a collision.
+      if (ignore && candidate.toLowerCase() === ignore.toLowerCase() && (await sameFile(this.abs(candidate), this.abs(ignore)))) return candidate
     }
   }
 
@@ -140,6 +142,15 @@ async function exists(p: string): Promise<boolean> {
   try {
     await access(p)
     return true
+  } catch {
+    return false
+  }
+}
+
+async function sameFile(a: string, b: string): Promise<boolean> {
+  try {
+    const [x, y] = await Promise.all([stat(a, { bigint: true }), stat(b, { bigint: true })])
+    return x.ino === y.ino && x.dev === y.dev
   } catch {
     return false
   }

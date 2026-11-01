@@ -5,6 +5,8 @@ import type { AblageApi, Channel } from '@shared/ipc'
 import type { CategoryUsage, ImportResult } from '@shared/types'
 import { planChange } from './categories'
 import type { AppContext } from './context'
+import { transaction } from './db'
+import { REFERENCES_SYNC_KEY } from './pipeline/pipeline'
 import { checkOllama, OLLAMA_DOWNLOAD_URL, testModels } from './classifier/health'
 import { rebuildFromLibrary } from './library/rebuild'
 import { generateCode } from './lib/naming'
@@ -42,15 +44,17 @@ const folderInput = z.object({
   location: optText
 })
 
+// Blank labels pass here: planChange rejects them with a readable message.
 const categoryFields = {
   id: z.string().min(1),
-  label: z.string().trim().min(1),
+  label: z.string().trim(),
   keywords: z.array(z.string().trim().min(1))
 }
 
 const categorySave = z.object({
   categories: z.array(z.object({ ...categoryFields, subcategories: z.array(z.object(categoryFields)).optional() })),
-  reassign: z.record(z.string(), z.string())
+  reassign: z.record(z.string(), z.string()),
+  version: z.string()
 })
 
 const settingsPatch = z
@@ -84,8 +88,6 @@ export function registerIpc(ctx: AppContext, getWindow: () => BrowserWindow | nu
     for (const { category_id, references } of ctx.refs.countByCategory()) entry(category_id).references = references
     return usage
   }
-
-  let savingCategories = false
 
   const importPaths = async (paths: string[]): Promise<ImportResult[]> => {
     const results: ImportResult[] = []
@@ -124,37 +126,52 @@ export function registerIpc(ctx: AppContext, getWindow: () => BrowserWindow | nu
   handle('categories:openFile', async () => {
     await shell.openPath(ctx.categories.file)
   })
-  handle('categories:usage', categoryUsage)
-  handle('categories:save', async (input) => {
-    if (savingCategories) throw new Error('Kategorien werden gerade gespeichert.')
-    savingCategories = true
-    try {
-      const { categories, reassign } = categorySave.parse(input)
-      await ctx.pipeline.idle()
+  handle('categories:load', () => {
+    ctx.categories.reload()
+    return {
+      categories: ctx.categories.all(),
+      usage: categoryUsage(),
+      version: ctx.categories.version(),
+      pendingSync: ctx.docs.pendingKeys().length
+    }
+  })
+  handle('categories:retrySync', () => {
+    ctx.library()
+    return ctx.pipeline.exclusive(() => ctx.pipeline.syncPending())
+  })
+  handle('categories:save', (input) => {
+    const { categories, reassign, version } = categorySave.parse(input)
+    return ctx.pipeline.exclusive(async () => {
+      if (ctx.categories.version() !== version) {
+        throw new Error('categories.yaml wurde inzwischen geändert. Bitte „Verwerfen“ wählen und die Änderungen erneut vornehmen.')
+      }
       ctx.categories.reload()
       const usage = categoryUsage()
       const plan = planChange(ctx.categories.all(), categories, reassign, new Set(Object.keys(usage)))
-      ctx.categories.save(categories)
+      // Without a library the journal could not be worked off and rebuilds would restore old ids.
+      if ([...plan.removed, ...plan.relocate].some((id) => usage[id])) ctx.library()
 
       const removed = new Set(plan.removed)
       const targetOf = (id: string): string | undefined => (removed.has(id) ? reassign[id] : undefined)
 
-      let changedRefs = 0
-      for (const id of plan.removed) {
-        const target = targetOf(id)
-        if (target) changedRefs += ctx.refs.reassignCategory(id, target)
-      }
-      if (changedRefs > 0) await ctx.saveReferences()
-
-      const items = ctx.docs.idsByCategories([...plan.removed, ...plan.relocate]).flatMap((doc) => {
-        const target = targetOf(doc.category_id)
-        if (target) return [{ id: doc.id, patch: { category_id: target } }]
-        return doc.deleted_at ? [] : [{ id: doc.id, patch: {} }]
+      // Synchronous, so a quit cannot interrupt it. The YAML comes last: its failure rolls back the rest.
+      transaction(ctx.db, () => {
+        const affected = ctx.docs
+          .idsByCategories([...plan.removed, ...plan.relocate])
+          .filter((doc) => targetOf(doc.category_id) || !doc.deleted_at)
+          .map((doc) => doc.id)
+        let changedRefs = 0
+        for (const id of plan.removed) {
+          const target = targetOf(id)
+          if (!target) continue
+          changedRefs += ctx.refs.reassignCategory(id, target)
+          ctx.docs.reassignCategory(id, target)
+        }
+        ctx.docs.markPending(changedRefs > 0 ? [...affected, REFERENCES_SYNC_KEY] : affected)
+        ctx.categories.save(categories)
       })
-      return await ctx.pipeline.applyCategoryPatches(items)
-    } finally {
-      savingCategories = false
-    }
+      return ctx.pipeline.syncPending()
+    })
   })
 
   handle('dashboard:get', () => ({
@@ -198,8 +215,11 @@ export function registerIpc(ctx: AppContext, getWindow: () => BrowserWindow | nu
   handle('trash:purge', (id) => ctx.pipeline.purge(id))
 
   handle('library:rebuild', async () => {
-    await ctx.pipeline.idle()
-    const result = await rebuildFromLibrary(ctx.db, ctx.docs, ctx.library())
+    const library = ctx.library()
+    const result = await ctx.pipeline.exclusive(async () => {
+      await ctx.pipeline.syncPending()
+      return rebuildFromLibrary(ctx.db, ctx.docs, library)
+    })
     ctx.pipeline.resumeUnfinished()
     return result
   })

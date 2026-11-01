@@ -105,5 +105,14 @@ if (!app.requestSingleInstanceLock()) {
     createWindow()
   })
 
-  app.on('will-quit', () => ctx?.dispose())
+  let quitting = false
+  app.on('will-quit', (event) => {
+    if (!ctx || quitting) return
+    quitting = true
+    event.preventDefault()
+    void ctx
+      .shutdown()
+      .catch((err) => console.error('shutdown failed:', err))
+      .finally(() => app.exit())
+  })
 }
